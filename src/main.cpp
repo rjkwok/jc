@@ -5,6 +5,13 @@
 
 #include <iostream>
 
+enum _entityCategory {
+    ENTITY =    0x0001,
+    PLAYER =    0x0002,
+    FEET =      0x0004,
+    FISH =      0x0008
+};
+
 sf::Vector2f normalize(const sf::Vector2f v) {
 
     float length = hypot(v.x, v.y);
@@ -259,23 +266,58 @@ private:
     sf::View mView;
 };
 
-class Player {
+class TexturedBody {
 
 public:
 
-    Player(b2World& world) {
+    TexturedBody() = default;
+    TexturedBody(b2Body* body) : mBody(body) { }
+
+    b2Body* mBody;
+
+protected:
+    sf::Sprite sprite;
+};
+
+class Level {
+
+public:
+
+    Level() : world(b2Vec2(0.0f, -9.81f)) {
+
+    }
+
+    ~Level() {
+
+        for (auto ptr : texturedBodies) {
+            delete ptr;
+        }
+    }
+
+    std::vector<TexturedBody*> texturedBodies;
+    std::vector<TexturedBody*> queuedForRemoval;
+    b2World world;
+};
+
+class Player : public TexturedBody {
+
+public:
+
+    Player(Level& level) {
 
         // Define main player bounds
         b2BodyDef boxBodyDef;
         boxBodyDef.position = b2Vec2(0.0f, 50.0f);
+        boxBodyDef.fixedRotation = true;
         boxBodyDef.type = b2_dynamicBody;
 
-        mBody = world.CreateBody(&boxBodyDef);
+        mBody = level.world.CreateBody(&boxBodyDef);
 
         b2PolygonShape boxShape;
         boxShape.SetAsBox(1.0f, 1.0f);
 
         b2FixtureDef boxFixtureDef;
+        boxFixtureDef.filter.categoryBits = PLAYER;
         boxFixtureDef.shape = &boxShape;
         boxFixtureDef.friction = 0.7f;
         boxFixtureDef.density = 1.0f;
@@ -288,13 +330,14 @@ public:
         sensorShape.SetAsBox(1.0f, 0.25f, b2Vec2(0.0f, -1.0f), 0.0f);
 
         b2FixtureDef sensorFixtureDef;
+        sensorFixtureDef.filter.categoryBits = FEET;
         sensorFixtureDef.shape = &sensorShape;
         sensorFixtureDef.isSensor = true;
         
         mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
     }
 
-    void update(const Input& input) {
+    void update(const Input& input, Level& level) {
 
         if (input.keyPressed(sf::Keyboard::Space) && canJump()) {
 
@@ -308,7 +351,48 @@ public:
 
         if (axis != 0 || canJump()) mBody->SetLinearVelocity(b2Vec2(axis*14.0f, mBody->GetLinearVelocity().y));
 
+        if (axis > 0)   mFacingRight = true;
+        if (axis < 0)   mFacingRight = false;
+
         if (input.keyHeld(sf::Keyboard::S)) mBody->ApplyForceToCenter(b2Vec2(0.0f, -500.0f), true);
+
+        if (input.keyPressed(sf::Keyboard::Return)) fireProjectile(level);
+    }
+
+    void fireProjectile(Level& level) {
+
+        // Spawn a fish and flip it through the air
+
+        b2BodyDef fishDef;
+
+        if (mFacingRight) {
+            fishDef.position = mBody->GetPosition() + b2Vec2(1.2f, 0.3f);
+            fishDef.linearVelocity = mBody->GetLinearVelocity() + b2Vec2(15.0f, 5.0f);
+            fishDef.angularVelocity = -7.0f;
+        }
+        else {
+            fishDef.position = mBody->GetPosition() + b2Vec2(-1.2f, 0.3f);
+            fishDef.linearVelocity = mBody->GetLinearVelocity() + b2Vec2(-15.0f, 5.0f);
+            fishDef.angularVelocity = 7.0f;
+        }
+        
+        fishDef.type = b2_dynamicBody;
+
+        b2PolygonShape fishShape;
+        fishShape.SetAsBox(0.4f, 0.2f);
+       
+        b2FixtureDef fishFixtureDef;
+        fishFixtureDef.filter.categoryBits = FISH;
+        fishFixtureDef.shape = &fishShape;
+        fishFixtureDef.friction = 1.0f;
+        fishFixtureDef.density = 1.0f;
+
+        b2Body* fishBody = level.world.CreateBody(&fishDef);
+
+        TexturedBody* texturedBody = new TexturedBody(fishBody);
+
+        fishBody->CreateFixture(&fishFixtureDef)->SetUserData((void*)texturedBody);
+        level.texturedBodies.push_back(texturedBody);
     }
 
     b2Vec2 getPosition() const {
@@ -326,28 +410,48 @@ public:
 private:
     ///////////////////////////
 
-    b2Body* mBody;
+    bool mFacingRight = true;
 };
 
-class FootContactListener : public b2ContactListener {
+class MyContactListener : public b2ContactListener {
 
     void BeginContact(b2Contact* contact) {
-        //check if fixture A was the foot sensor
-        void* fixtureUserData = contact->GetFixtureA()->GetUserData();
-        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
-        //check if fixture B was the foot sensor
-        fixtureUserData = contact->GetFixtureB()->GetUserData();
-        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FISH && contact->GetFixtureB()->GetFilterData().categoryBits == ENTITY) {
+            //contact->GetFixtureA()->GetBody()->SetActive(false);
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    level->queuedForRemoval.push_back(static_cast<TexturedBody*>(fixtureUserData));
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FISH && contact->GetFixtureA()->GetFilterData().categoryBits == ENTITY) {
+            //contact->GetFixtureB()->GetBody()->SetActive(false);
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    level->queuedForRemoval.push_back(static_cast<TexturedBody*>(fixtureUserData));
+        }
     }
 
     void EndContact(b2Contact* contact) {
-        //check if fixture A was the foot sensor
-        void* fixtureUserData = contact->GetFixtureA()->GetUserData();
-        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
-        //check if fixture B was the foot sensor
-        fixtureUserData = contact->GetFixtureB()->GetUserData();
-        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        }
     }
+
+public:
+
+    Level* level;
 
 };
 
@@ -359,7 +463,7 @@ int main() {
 
     // Create the world
 
-    b2World world(b2Vec2(0.0f, -9.81f));
+    Level level;
 
     b2BodyDef groundBodyDef;
     groundBodyDef.position = b2Vec2(0.0f, 0.0f);
@@ -367,13 +471,13 @@ int main() {
     b2PolygonShape groundShape;
     groundShape.SetAsBox(50.0f, 1.0f);
 
-    world.CreateBody(&groundBodyDef)->CreateFixture(&groundShape, 1.0f);
+    level.world.CreateBody(&groundBodyDef)->CreateFixture(&groundShape, 1.0f);
 
-    Player player(world);
+    Player player(level);
 
-    FootContactListener FootContactListener;
-
-    world.SetContactListener(&FootContactListener);
+    MyContactListener myContactListener;
+    myContactListener.level = &level;
+    level.world.SetContactListener(&myContactListener);
     //
 
     Camera camera(view);
@@ -381,7 +485,7 @@ int main() {
 
     b2DebugDraw debugDraw(window);
     debugDraw.SetFlags( b2Draw::e_shapeBit );
-    world.SetDebugDraw(&debugDraw);
+    level.world.SetDebugDraw(&debugDraw);
 
     Input input;
 
@@ -414,12 +518,18 @@ int main() {
             window.close();
         }
 
-        player.update(input);
+        player.update(input, level);
 
-        world.Step(dt, velocityIterations, positionIterations);
+        level.world.Step(dt, velocityIterations, positionIterations);
+
+        for (auto ptr: level.queuedForRemoval) {
+
+            level.world.DestroyBody(ptr->mBody);
+        }
+        level.queuedForRemoval.clear();
 
         window.clear();
-        world.DrawDebugData();
+        level.world.DrawDebugData();
         window.display();
     }
 
