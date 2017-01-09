@@ -181,11 +181,11 @@ struct Input {
         }
     }
 
-    bool keyHeld(const sf::Keyboard::Key& key) {
+    bool keyHeld(const sf::Keyboard::Key& key) const {
         return std::find(keys_held.begin(), keys_held.end(), key) != keys_held.end();
     }
 
-    bool keyReleased(const sf::Keyboard::Key& key) {
+    bool keyReleased(const sf::Keyboard::Key& key) const {
         return std::find(keys_released.begin(), keys_released.end(), key) != keys_released.end();
     }
 
@@ -201,6 +201,89 @@ struct Input {
 
     std::vector<sf::Keyboard::Key> keys_released;
     std::vector<sf::Keyboard::Key> keys_held;
+};
+
+class Player {
+
+public:
+
+    Player(b2World& world) {
+
+        // Define main player bounds
+        b2BodyDef boxBodyDef;
+        boxBodyDef.position = b2Vec2(0.0f, 50.0f);
+        boxBodyDef.type = b2_dynamicBody;
+
+        mBody = world.CreateBody(&boxBodyDef);
+
+        b2PolygonShape boxShape;
+        boxShape.SetAsBox(1.0f, 1.0f);
+
+        b2FixtureDef boxFixtureDef;
+        boxFixtureDef.shape = &boxShape;
+        boxFixtureDef.friction = 0.3f;
+        boxFixtureDef.density = 1.0f;
+       
+        mBody->CreateFixture(&boxFixtureDef);
+
+        // Define "foot" sensor for jumpability
+
+        b2PolygonShape sensorShape;
+        sensorShape.SetAsBox(1.0f, 0.25f, b2Vec2(0.0f, -1.0f), 0.0f);
+
+        b2FixtureDef sensorFixtureDef;
+        sensorFixtureDef.shape = &sensorShape;
+        sensorFixtureDef.isSensor = true;
+        
+        mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
+    }
+
+    void update(const Input& input) {
+
+        if (input.keyHeld(sf::Keyboard::Space) && canJump()) {
+
+            mBody->ApplyLinearImpulseToCenter(b2Vec2(0.0f, 50.0f), true);
+        }
+    }
+
+    b2Vec2 getPosition() const {
+
+        return mBody->GetPosition();
+    }
+
+    bool canJump() {
+
+        return mFootContactCount > 0;
+    }
+
+    int mFootContactCount = 0;
+
+private:
+    ///////////////////////////
+
+    b2Body* mBody;
+};
+
+class FootContactListener : public b2ContactListener {
+
+    void BeginContact(b2Contact* contact) {
+        //check if fixture A was the foot sensor
+        void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        //check if fixture B was the foot sensor
+        fixtureUserData = contact->GetFixtureB()->GetUserData();
+        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+    }
+
+    void EndContact(b2Contact* contact) {
+        //check if fixture A was the foot sensor
+        void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        //check if fixture B was the foot sensor
+        fixtureUserData = contact->GetFixtureB()->GetUserData();
+        if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+    }
+
 };
 
 int main() {
@@ -221,20 +304,11 @@ int main() {
 
     world.CreateBody(&groundBodyDef)->CreateFixture(&groundShape, 1.0f);
 
-    b2BodyDef boxBodyDef;
-    boxBodyDef.position = b2Vec2(0.0f, 50.0f);
-    boxBodyDef.type = b2_dynamicBody;
+    Player player(world);
 
-    b2PolygonShape boxShape;
-    boxShape.SetAsBox(1.0f, 1.0f);
+    FootContactListener FootContactListener;
 
-    b2FixtureDef boxFixtureDef;
-    boxFixtureDef.shape = &boxShape;
-    boxFixtureDef.friction = 0.3f;
-    boxFixtureDef.density = 1.0f;
-
-    world.CreateBody(&boxBodyDef)->CreateFixture(&boxFixtureDef);
-
+    world.SetContactListener(&FootContactListener);
     //
 
     b2DebugDraw debugDraw(window);
@@ -262,7 +336,7 @@ int main() {
         timer.restart();
         //
 
-        view.setCenter(sf::Vector2f(0.0f, 0.0f));
+        view.setCenter(convertb2Vec2(player.getPosition()));
         window.setView(view);
 
         input.collect(window, view);
@@ -270,6 +344,8 @@ int main() {
         if (input.keyReleased(sf::Keyboard::Escape)) {
             window.close();
         }
+
+        player.update(input);
 
         world.Step(dt, velocityIterations, positionIterations);
 
