@@ -5,6 +5,15 @@
 
 #include <iostream>
 
+sf::Vector2f normalize(const sf::Vector2f v) {
+
+    float length = hypot(v.x, v.y);
+
+    if (length == 0)    return sf::Vector2f(0, 0);
+
+    return sf::Vector2f(v.x/length, v.y/length);
+}
+
 sf::Vector2f convertb2Vec2(const b2Vec2& vec) {
     return sf::Vector2f(vec.x*40.0f, -vec.y*40.0f);
 }
@@ -145,6 +154,7 @@ struct Input {
         rmb_held = false;
 
         keys_released.clear();
+        keys_pressed.clear();
         keys_held.clear();
 
         sf::Event event;
@@ -175,10 +185,19 @@ struct Input {
                     break;
 
                 case sf::Event::KeyPressed:
-                    keys_held.push_back(event.key.code);
+                    keys_pressed.push_back(event.key.code);
                     break;
             }
         }
+
+        for (int key = sf::Keyboard::A; key != sf::Keyboard::KeyCount; ++key) {
+
+            if (sf::Keyboard::isKeyPressed((sf::Keyboard::Key)key)) keys_held.push_back((sf::Keyboard::Key)key);
+        }
+    }
+
+    bool keyPressed(const sf::Keyboard::Key& key) const {
+        return std::find(keys_pressed.begin(), keys_pressed.end(), key) != keys_pressed.end();
     }
 
     bool keyHeld(const sf::Keyboard::Key& key) const {
@@ -201,6 +220,43 @@ struct Input {
 
     std::vector<sf::Keyboard::Key> keys_released;
     std::vector<sf::Keyboard::Key> keys_held;
+    std::vector<sf::Keyboard::Key> keys_pressed;
+};
+
+class Camera {
+
+public:
+
+    Camera(const sf::View& view) : mView(view) { }
+
+    void setPixelsPerSecondSquared(const float a) {
+        mA = a;
+    }
+
+    void track(const sf::Vector2f& point) {
+
+        mTrackingPoint = point;
+    }
+
+    void update(const float dt) {
+
+        sf::Vector2f a = normalize(mTrackingPoint - (mView.getCenter() + mV*0.5f))*mA;
+
+        mV = mV + (a*dt);
+
+        mView.setCenter(mView.getCenter() + (mV*dt));
+    }
+
+    sf::View getView() {
+        return mView;
+    }
+
+private:
+
+    sf::Vector2f mTrackingPoint;
+    float mA;
+    sf::Vector2f mV;
+    sf::View mView;
 };
 
 class Player {
@@ -221,7 +277,7 @@ public:
 
         b2FixtureDef boxFixtureDef;
         boxFixtureDef.shape = &boxShape;
-        boxFixtureDef.friction = 0.3f;
+        boxFixtureDef.friction = 0.7f;
         boxFixtureDef.density = 1.0f;
        
         mBody->CreateFixture(&boxFixtureDef);
@@ -240,10 +296,19 @@ public:
 
     void update(const Input& input) {
 
-        if (input.keyHeld(sf::Keyboard::Space) && canJump()) {
+        if (input.keyPressed(sf::Keyboard::Space) && canJump()) {
 
             mBody->ApplyLinearImpulseToCenter(b2Vec2(0.0f, 50.0f), true);
         }
+
+        float axis = 0.0f;
+
+        if (input.keyHeld(sf::Keyboard::D)) axis += 1.0f;
+        if (input.keyHeld(sf::Keyboard::A)) axis -= 1.0f;
+
+        if (axis != 0 || canJump()) mBody->SetLinearVelocity(b2Vec2(axis*14.0f, mBody->GetLinearVelocity().y));
+
+        if (input.keyHeld(sf::Keyboard::S)) mBody->ApplyForceToCenter(b2Vec2(0.0f, -500.0f), true);
     }
 
     b2Vec2 getPosition() const {
@@ -311,8 +376,11 @@ int main() {
     world.SetContactListener(&FootContactListener);
     //
 
+    Camera camera(view);
+    camera.setPixelsPerSecondSquared(8000.0f);
+
     b2DebugDraw debugDraw(window);
-    debugDraw.SetFlags( b2Draw::e_shapeBit | b2Draw::e_aabbBit );
+    debugDraw.SetFlags( b2Draw::e_shapeBit );
     world.SetDebugDraw(&debugDraw);
 
     Input input;
@@ -336,8 +404,9 @@ int main() {
         timer.restart();
         //
 
-        view.setCenter(convertb2Vec2(player.getPosition()));
-        window.setView(view);
+        camera.track(convertb2Vec2(player.getPosition()));
+        camera.update(dt);
+        window.setView(camera.getView());
 
         input.collect(window, view);
 
