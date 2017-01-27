@@ -13,7 +13,8 @@ enum _entityCategory {
     ENTITY =    0x0001,
     PLAYER =    0x0002,
     FEET =      0x0004,
-    FISH =      0x0008
+    FISH =      0x0008,
+    FALL =      0x0010
 };
 
 template <typename T>
@@ -69,7 +70,7 @@ public:
 
     /// Draw a solid closed polygon provided in CCW order.
     void DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) override {
-        
+
         sf::ConvexShape shape(vertexCount);
 
         for (int index = 0; index < vertexCount; ++index) {
@@ -85,7 +86,7 @@ public:
 
     /// Draw a circle.
     void DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color) override {
-        
+
         sf::CircleShape shape(radius);
 
         shape.setOrigin(radius, radius);
@@ -97,10 +98,10 @@ public:
 
         window.draw(shape);
     }
-    
+
     /// Draw a solid circle.
     void DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color) override {
-        
+
         sf::CircleShape shape(radius);
 
         shape.setOrigin(radius, radius);
@@ -112,10 +113,10 @@ public:
 
         window.draw(shape);
     }
-    
+
     /// Draw a line segment.
     void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) override {
-        
+
         sf::RectangleShape shape(sf::Vector2f((p2 - p1).Length(), 3.0f));
 
         shape.setOrigin(0.0f, 1.5f);
@@ -126,18 +127,18 @@ public:
         shape.setOutlineThickness(0);
         shape.setFillColor(convertb2Color(color, 200.0f));
 
-        window.draw(shape);  
+        window.draw(shape);
     }
 
     /// Draw a transform. Choose your own length scale.
     /// @param xf a transform.
     void DrawTransform(const b2Transform& xf) override {
-        
+
     }
 
     /// Draw a point.
     void DrawPoint(const b2Vec2& p, float32 size, const b2Color& color) override {
-        
+
         sf::CircleShape shape(size);
 
         shape.setOrigin(size, size);
@@ -233,7 +234,7 @@ struct Input {
     bool lmb_held;
     bool rmb_released;
     bool rmb_held;
-   
+
     float mmb_delta;
 
     std::vector<sf::Keyboard::Key> keys_released;
@@ -245,10 +246,24 @@ class Camera {
 
 public:
 
-    Camera(const sf::View& view) : mView(view) { }
+    Camera(const sf::View& view) {
+
+        mView = view;
+        mScale = 1.0f;
+        mWidth = view.getSize().x;
+        mHeight = view.getSize().y;
+    }
 
     void setPixelsPerSecondSquared(const float a) {
         mA = a;
+    }
+
+    void zoom(const float scaling) {
+
+        mScale += scaling;
+
+        if (mScale < 0.1f)      mScale = 0.1f;
+        else if (mScale > 8.0f) mScale = 8.0f;
     }
 
     void track(const sf::Vector2f& point) {
@@ -262,9 +277,13 @@ public:
 
         mV = mV + (a*dt);
 
+        mView.setSize(mWidth*mScale, mHeight*mScale);
         mView.setCenter(mView.getCenter() + (mV*dt));
     }
 
+    float mScale;
+    float mWidth;
+    float mHeight;
     sf::View mView;
 
 private:
@@ -272,7 +291,7 @@ private:
     sf::Vector2f mTrackingPoint;
     float mA;
     sf::Vector2f mV;
-    
+
 };
 
 class TexturedBody {
@@ -301,7 +320,7 @@ public:
         }
     }
 
-    virtual void generateBody(b2World& world) = 0;
+    virtual void generateBody(b2World& world, bool fall=false) = 0;
 
     virtual json getJSON() = 0;
     /////////////////////////////////////////////
@@ -310,7 +329,7 @@ public:
 
 protected:
 
-    b2Body* body = nullptr; 
+    b2Body* body = nullptr;
 };
 
 class EditableEdge : public EditableShape {
@@ -318,8 +337,8 @@ class EditableEdge : public EditableShape {
 public:
 
     EditableEdge() = default;
-    
-    EditableEdge(const b2Vec2& start, const b2Vec2& end) { 
+
+    EditableEdge(const b2Vec2& start, const b2Vec2& end) {
 
         points.push_back(new b2Vec2(start));
         points.push_back(new b2Vec2(end));
@@ -331,7 +350,7 @@ public:
         points.push_back(new b2Vec2(edge_data["end"]["x"], edge_data["end"]["y"]));
     }
 
-    virtual void generateBody(b2World& world) override {
+    virtual void generateBody(b2World& world, bool fall=false) override {
 
         if (body)   world.DestroyBody(body);
 
@@ -342,11 +361,19 @@ public:
         float thickness = 0.3f;
 
         b2PolygonShape rectangle;
-        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2(points[1]->x - points[0]->x, thickness/2.0f), b2Vec2(points[1]->x - points[0]->x, -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2(hypot(points[1]->x - points[0]->x, points[1]->y - points[0]->y), thickness/2.0f), b2Vec2(hypot(points[1]->x - points[0]->x, points[1]->y - points[0]->y), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
         rectangle.Set(vertices, 4);
 
         body = world.CreateBody(&bodyDef);
-        body->CreateFixture(&rectangle, 0.0f); 
+
+        b2FixtureDef fixtureDef;
+        if (fall)   fixtureDef.filter.categoryBits = ENTITY | FALL;
+        else        fixtureDef.filter.categoryBits = ENTITY;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.0f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
     }
 
     virtual json getJSON() override {
@@ -361,7 +388,7 @@ class Level {
 
 public:
 
-    Level() : world(b2Vec2(0.0f, -9.81f)) {
+    Level() : world(b2Vec2(0.0f, -90.81f)) {
 
     }
 
@@ -375,67 +402,13 @@ public:
         }
     }
 
-    void editTerrain(const Input& input, sf::RenderWindow& window, sf::View& windowView) {
-
-        float maxDistance = 20.0f;
-
-        float shortestDistance = -1.0f;
-        EditableEdge* closestEdge = nullptr;
-        b2Vec2* closestPoint = nullptr;
-
-        for (auto edge : edges) {
-            for (auto point : edge->points) {
-
-                sf::Vector2i windowPoint = window.mapCoordsToPixel(convertb2Vec2(*point), windowView);
-                float distance = hypot(input.mouse.x - windowPoint.x, input.mouse.y - windowPoint.y);
-
-                if (distance <= maxDistance && (shortestDistance < 0 || distance < shortestDistance)) {
-                    shortestDistance = distance;
-                    closestEdge = edge;
-                    closestPoint = point;
-                }
-            }
-        }
-
-        if (input.lmb_released) {
-
-            if (selectedShape) {
-                selectedShape->generateBody(world);
-                selectedShape = nullptr;
-                selectedPoint = nullptr;
-            }
-            else {
-
-                // select the closest point if within tolerance
-                if (closestPoint) {
-                    selectedShape = closestEdge;
-                    selectedPoint = closestPoint;
-                }
-            }
-        }
-
-        if (selectedPoint) {
-            *selectedPoint = convertVector2f(input.scene_mouse);
-        }
-
-        if (input.rmb_released) {
-            constructionPoints.push_back(convertVector2f(input.scene_mouse));
-        }
-
-        if (constructionPoints.size() == 2) {
-            edges.push_back(new EditableEdge(constructionPoints[0], constructionPoints[1]));
-            edges[edges.size() - 1]->generateBody(world);
-            constructionPoints.clear();
-        }
-    }
-
     void loadFromFile(const std::string& path) {
 
         // Load
         json levelData;
 
         std::ifstream file(path);
-        
+
         if (!file.good())   return;
 
         file >> levelData;
@@ -463,17 +436,105 @@ public:
     }
 
     // Terrain is stored as a collection of thin static rectangles defined by point pairs
-    // Each point can be dragged around in the editor and the rectangle will be re-generated
-
-    std::vector<b2Vec2> constructionPoints;
-
-    b2Vec2* selectedPoint = nullptr;
-    EditableEdge* selectedShape = nullptr;
 
     std::vector<EditableEdge*> edges;
     std::vector<TexturedBody*> texturedBodies;
     std::vector<TexturedBody*> queuedForRemoval;
     b2World world;
+};
+
+class Builder {
+
+public:
+
+    Builder() = default;
+
+    virtual void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) {
+
+    }
+
+    virtual void draw(sf::RenderWindow& window) {
+
+    }
+};
+
+class EdgeBuilder: public Builder {
+
+public:
+
+    EdgeBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            constructionPoints.push_back(gridSnappedPoint);
+        }
+
+        if (constructionPoints.size() == 2) {
+            level->edges.push_back(new EditableEdge(constructionPoints[0], constructionPoints[1]));
+            level->edges[level->edges.size() - 1]->generateBody(level->world, true);
+            constructionPoints.clear();
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
 };
 
 class Player : public TexturedBody {
@@ -496,9 +557,9 @@ public:
         b2FixtureDef boxFixtureDef;
         boxFixtureDef.filter.categoryBits = PLAYER;
         boxFixtureDef.shape = &boxShape;
-        boxFixtureDef.friction = 0.7f;
+        boxFixtureDef.friction = 0.0f;
         boxFixtureDef.density = 1.0f;
-       
+
         mBody->CreateFixture(&boxFixtureDef);
 
         // Define "foot" sensor for jumpability
@@ -510,23 +571,31 @@ public:
         sensorFixtureDef.filter.categoryBits = FEET;
         sensorFixtureDef.shape = &sensorShape;
         sensorFixtureDef.isSensor = true;
-        
+
         mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
     }
 
     void update(const Input& input, Level& level) {
 
-        if (input.keyPressed(sf::Keyboard::Space) && canJump()) {
+        if (input.keyPressed(sf::Keyboard::Space)) {
 
-            mBody->ApplyLinearImpulseToCenter(b2Vec2(0.0f, 50.0f), true);
+            if (touchingGround()) {
+                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
+            }
+            else if (mExtraJumps > 0) {
+                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
+                --mExtraJumps;
+            }
         }
+
+        if (touchingGround())   mExtraJumps = 1;
 
         float axis = 0.0f;
 
         if (input.keyHeld(sf::Keyboard::D)) axis += 1.0f;
         if (input.keyHeld(sf::Keyboard::A)) axis -= 1.0f;
 
-        if (axis != 0 || canJump()) mBody->SetLinearVelocity(b2Vec2(axis*8.0f, mBody->GetLinearVelocity().y));
+        if (axis != 0 || touchingGround()) mBody->SetLinearVelocity(b2Vec2(axis*14.0f, mBody->GetLinearVelocity().y));
 
         if (axis > 0)   mFacingRight = true;
         if (axis < 0)   mFacingRight = false;
@@ -552,12 +621,12 @@ public:
             fishDef.linearVelocity = mBody->GetLinearVelocity() + b2Vec2(-15.0f, 5.0f);
             fishDef.angularVelocity = 7.0f;
         }
-        
+
         fishDef.type = b2_dynamicBody;
 
         b2PolygonShape fishShape;
         fishShape.SetAsBox(0.4f, 0.2f);
-       
+
         b2FixtureDef fishFixtureDef;
         fishFixtureDef.filter.categoryBits = FISH;
         fishFixtureDef.shape = &fishShape;
@@ -577,7 +646,7 @@ public:
         return mBody->GetPosition();
     }
 
-    bool canJump() {
+    bool touchingGround() {
 
         return mFootContactCount > 0;
     }
@@ -588,11 +657,21 @@ private:
     ///////////////////////////
 
     bool mFacingRight = true;
+    int mExtraJumps = 0;
 };
 
 class MyContactListener : public b2ContactListener {
 
     void BeginContact(b2Contact* contact) {
+
+        if (contact->GetFixtureA()->GetFilterData().categoryBits & FALL != 0) {
+            std::cout << "SDG" << std::endl;
+            contact->GetFixtureA()->GetBody()->SetType(b2_dynamicBody);
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits & FALL != 0) {
+            std::cout << "SDG" << std::endl;
+            contact->GetFixtureB()->GetBody()->SetType(b2_dynamicBody);
+        }
 
         if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
@@ -615,7 +694,7 @@ class MyContactListener : public b2ContactListener {
     }
 
     void EndContact(b2Contact* contact) {
-        
+
         if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
@@ -643,13 +722,10 @@ int main() {
 
     Level level;
 
-    b2BodyDef groundBodyDef;
-    groundBodyDef.position = b2Vec2(0.0f, 0.0f);
-
-    b2PolygonShape groundShape;
-    groundShape.SetAsBox(50.0f, 1.0f);
-
-    level.world.CreateBody(&groundBodyDef)->CreateFixture(&groundShape, 1.0f);
+    std::vector<Builder*> builders;
+    builders.push_back(new Builder());
+    builders.push_back(new EdgeBuilder());
+    auto builder = builders.begin();
 
     Player player(level);
 
@@ -669,12 +745,12 @@ int main() {
 
     Input input;
 
-    int32 positionIterations = 2; 
+    int32 positionIterations = 2;
     int32 velocityIterations = 6;
 
     //initialize loop timer
     sf::Clock timer;
-    double dt = 0; 
+    double dt = 0;
     //
 
     while (window.isOpen()) {
@@ -684,11 +760,12 @@ int main() {
         dt = timer.getElapsedTime().asSeconds();
 
         if (dt == 0)    dt = 0.000000001;
-        
+
         timer.restart();
         //
 
         camera.track(convertb2Vec2(player.getPosition()));
+        camera.zoom(-input.mmb_delta);
         camera.update(dt);
         window.setView(camera.mView);
 
@@ -698,7 +775,12 @@ int main() {
             window.close();
         }
 
-        level.editTerrain(input, window, window_view);
+        if (input.keyReleased(sf::Keyboard::Tab)) {
+            builder++;
+            if (builder == builders.end())  builder = builders.begin();
+        }
+
+        (*builder)->update(input, &level, window, window_view);
 
         player.update(input, level);
 
@@ -711,8 +793,13 @@ int main() {
         level.queuedForRemoval.clear();
 
         window.clear();
+        (*builder)->draw(window);
         level.world.DrawDebugData();
         window.display();
+    }
+
+    for (auto ptr: builders) {
+        delete ptr;
     }
 
     level.dumpToFile("level.json");
