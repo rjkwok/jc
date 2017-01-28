@@ -14,7 +14,8 @@ enum _entityCategory {
     PLAYER =    0x0002,
     FEET =      0x0004,
     FISH =      0x0008,
-    FALL =      0x0010
+    FALL =      0x0010,
+    LADDER =    0x0020
 };
 
 template <typename T>
@@ -332,56 +333,139 @@ protected:
     b2Body* body = nullptr;
 };
 
-class EditableEdge : public EditableShape {
+class Edge {
 
 public:
 
-    EditableEdge() = default;
+    Edge() = default;
 
-    EditableEdge(const b2Vec2& start, const b2Vec2& end) {
-
-        points.push_back(new b2Vec2(start));
-        points.push_back(new b2Vec2(end));
-    }
-
-    EditableEdge(const json& edge_data) {
-
-        points.push_back(new b2Vec2(edge_data["start"]["x"], edge_data["start"]["y"]));
-        points.push_back(new b2Vec2(edge_data["end"]["x"], edge_data["end"]["y"]));
-    }
-
-    virtual void generateBody(b2World& world, bool fall=false) override {
-
-        if (body)   world.DestroyBody(body);
-
+    Edge(b2World& world, const b2Vec2& start, const b2Vec2& end, const unsigned short bitmask)
+        : start(start)
+        , end(end)
+        , bitmask(bitmask)
+    {
         b2BodyDef bodyDef;
-        bodyDef.position = *points[0];
-        bodyDef.angle = atan2(points[1]->y - points[0]->y, points[1]->x - points[0]->x);
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.fixedRotation = true;
 
         float thickness = 0.3f;
 
         b2PolygonShape rectangle;
-        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2(hypot(points[1]->x - points[0]->x, points[1]->y - points[0]->y), thickness/2.0f), b2Vec2(hypot(points[1]->x - points[0]->x, points[1]->y - points[0]->y), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
         rectangle.Set(vertices, 4);
 
-        body = world.CreateBody(&bodyDef);
+        b2Body* body = world.CreateBody(&bodyDef);
 
         b2FixtureDef fixtureDef;
-        if (fall)   fixtureDef.filter.categoryBits = ENTITY | FALL;
-        else        fixtureDef.filter.categoryBits = ENTITY;
+        fixtureDef.filter.categoryBits = bitmask;
         fixtureDef.density = 1.0f;
-        fixtureDef.friction = 0.0f;
+        fixtureDef.friction = 0.7f;
         fixtureDef.shape = &rectangle;
 
         body->CreateFixture(&fixtureDef);
     }
 
-    virtual json getJSON() override {
+    Edge(b2World& world, const json& edge_data) {
+
+        start = b2Vec2(edge_data["start"]["x"], edge_data["start"]["y"]);
+        end = b2Vec2(edge_data["end"]["x"], edge_data["end"]["y"]);
+        bitmask = edge_data["mask"];
+
+        b2BodyDef bodyDef;
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.fixedRotation = true;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = bitmask;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.7f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+    }
+
+    json getJSON() {
         json edge_data;
-        edge_data["start"] = { { "x", points[0]->x }, { "y", points[0]->y } };
-        edge_data["end"] = { { "x", points[1]->x }, { "y", points[1]->y } };
+        edge_data["start"] = { { "x", start.x }, { "y", start.y } };
+        edge_data["end"] = { { "x", end.x }, { "y", end.y } };
+        edge_data["mask"] = bitmask;
         return edge_data;
     }
+
+    b2Vec2 start;
+    b2Vec2 end;
+    unsigned short bitmask;
+};
+
+class Ladder {
+
+public:
+
+    Ladder() = default;
+
+    Ladder(b2World& world, const b2Vec2 pos) : pos(pos) {
+
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, 0.0f), b2Vec2(0.0f, 4.0f), b2Vec2(2.0f, 4.0f), b2Vec2(2.0f, 0.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = LADDER;
+        fixtureDef.isSensor = true;
+        fixtureDef.density = 1.0f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+    }
+
+    Ladder(b2World&world, const json& ladder_data) {
+
+        pos = b2Vec2(ladder_data["pos"]["x"], ladder_data["pos"]["y"]);
+
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, 0.0f), b2Vec2(0.0f, 4.0f), b2Vec2(2.0f, 4.0f), b2Vec2(2.0f, 0.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = LADDER;
+        fixtureDef.isSensor = true;
+        fixtureDef.density = 1.0f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+    }
+
+    json getJSON() {
+        json ladder_data;
+        ladder_data["pos"] = { { "x", pos.x }, { "y", pos.y } };
+        return ladder_data;
+    }
+
+    b2Vec2 pos;
 };
 
 class Level {
@@ -395,9 +479,6 @@ public:
     ~Level() {
 
         for (auto ptr : texturedBodies) {
-            delete ptr;
-        }
-        for (auto ptr : edges) {
             delete ptr;
         }
     }
@@ -415,8 +496,11 @@ public:
         file.close();
 
         for (auto each: levelData["edges"]) {
-            edges.push_back(new EditableEdge(b2Vec2(each["start"]["x"], each["start"]["y"]), b2Vec2(each["end"]["x"], each["end"]["y"])));
-            edges[edges.size() - 1]->generateBody(world);
+            edges.push_back(Edge(world, each));
+        }
+
+        for (auto each: levelData["ladders"]) {
+            ladders.push_back(Ladder(world, each));
         }
     }
 
@@ -427,7 +511,11 @@ public:
         levelData["edges"] = json::array();
         for (auto edge: edges) {
 
-            levelData["edges"].push_back(edge->getJSON());
+            levelData["edges"].push_back(edge.getJSON());
+        }
+        for (auto ladder: ladders) {
+
+            levelData["ladders"].push_back(ladder.getJSON());
         }
 
         std::ofstream file(path);
@@ -437,9 +525,9 @@ public:
 
     // Terrain is stored as a collection of thin static rectangles defined by point pairs
 
-    std::vector<EditableEdge*> edges;
+    std::vector<Edge> edges;
+    std::vector<Ladder> ladders;
     std::vector<TexturedBody*> texturedBodies;
-    std::vector<TexturedBody*> queuedForRemoval;
     b2World world;
 };
 
@@ -519,8 +607,7 @@ public:
         }
 
         if (constructionPoints.size() == 2) {
-            level->edges.push_back(new EditableEdge(constructionPoints[0], constructionPoints[1]));
-            level->edges[level->edges.size() - 1]->generateBody(level->world, true);
+            level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], ENTITY));
             constructionPoints.clear();
         }
     }
@@ -534,6 +621,157 @@ public:
     b2Vec2 gridSnappedPoint;
     sf::CircleShape cursor;
     std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
+};
+
+class FallingEdgeBuilder: public Builder {
+
+public:
+
+    FallingEdgeBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            constructionPoints.push_back(gridSnappedPoint);
+        }
+
+        if (constructionPoints.size() == 2) {
+            level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], FALL));
+            constructionPoints.clear();
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
+};
+
+class LadderBuilder: public Builder {
+
+public:
+
+    LadderBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            level->ladders.push_back(Ladder(level->world, gridSnappedPoint));
+        }
+
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
     sf::VertexArray mGrid;
 };
 
@@ -560,7 +798,7 @@ public:
         boxFixtureDef.friction = 0.0f;
         boxFixtureDef.density = 1.0f;
 
-        mBody->CreateFixture(&boxFixtureDef);
+        mBody->CreateFixture(&boxFixtureDef)->SetUserData((void*)this);
 
         // Define "foot" sensor for jumpability
 
@@ -595,12 +833,23 @@ public:
         if (input.keyHeld(sf::Keyboard::D)) axis += 1.0f;
         if (input.keyHeld(sf::Keyboard::A)) axis -= 1.0f;
 
-        if (axis != 0 || touchingGround()) mBody->SetLinearVelocity(b2Vec2(axis*14.0f, mBody->GetLinearVelocity().y));
+        if (axis != 0 || touchingGround()) {
+            if (input.keyHeld(sf::Keyboard::LShift)) {
+                mBody->SetLinearVelocity(b2Vec2(axis*30.0f, mBody->GetLinearVelocity().y));
+            }
+            else {
+                mBody->SetLinearVelocity(b2Vec2(axis*15.0f, mBody->GetLinearVelocity().y));
+            }
+        }
+
+        if (touchingLadder()) {
+            if (input.keyHeld(sf::Keyboard::W)) {
+                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 20.0f));
+            }
+        }
 
         if (axis > 0)   mFacingRight = true;
         if (axis < 0)   mFacingRight = false;
-
-        if (input.keyHeld(sf::Keyboard::S)) mBody->ApplyForceToCenter(b2Vec2(0.0f, -500.0f), true);
 
         if (input.keyPressed(sf::Keyboard::Return)) fireProjectile(level);
     }
@@ -651,7 +900,13 @@ public:
         return mFootContactCount > 0;
     }
 
+    bool touchingLadder() {
+
+        return mLadderContactCount > 0;
+    }
+
     int mFootContactCount = 0;
+    int mLadderContactCount = 0;
 
 private:
     ///////////////////////////
@@ -664,14 +919,7 @@ class MyContactListener : public b2ContactListener {
 
     void BeginContact(b2Contact* contact) {
 
-        if (contact->GetFixtureA()->GetFilterData().categoryBits & FALL != 0) {
-            std::cout << "SDG" << std::endl;
-            contact->GetFixtureA()->GetBody()->SetType(b2_dynamicBody);
-        }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits & FALL != 0) {
-            std::cout << "SDG" << std::endl;
-            contact->GetFixtureB()->GetBody()->SetType(b2_dynamicBody);
-        }
+        beginContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
 
         if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
@@ -681,20 +929,20 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
         }
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == FISH && contact->GetFixtureB()->GetFilterData().categoryBits == ENTITY) {
-            //contact->GetFixtureA()->GetBody()->SetActive(false);
-            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
-            if (fixtureUserData)    level->queuedForRemoval.push_back(static_cast<TexturedBody*>(fixtureUserData));
-        }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == FISH && contact->GetFixtureA()->GetFilterData().categoryBits == ENTITY) {
-            //contact->GetFixtureB()->GetBody()->SetActive(false);
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
-            if (fixtureUserData)    level->queuedForRemoval.push_back(static_cast<TexturedBody*>(fixtureUserData));
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == LADDER && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
         }
     }
 
     void EndContact(b2Contact* contact) {
 
+        endContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
+
         if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
@@ -703,12 +951,22 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
         }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == LADDER && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
+        }
     }
 
 public:
 
-    Level* level;
+    std::vector<std::pair<b2Fixture*, b2Fixture*> > beginContactEvents;
+    std::vector<std::pair<b2Fixture*, b2Fixture*> > endContactEvents;
 
+    Level* level;
 };
 
 int main() {
@@ -725,6 +983,8 @@ int main() {
     std::vector<Builder*> builders;
     builders.push_back(new Builder());
     builders.push_back(new EdgeBuilder());
+    builders.push_back(new FallingEdgeBuilder());
+    builders.push_back(new LadderBuilder());
     auto builder = builders.begin();
 
     Player player(level);
@@ -786,11 +1046,23 @@ int main() {
 
         level.world.Step(dt, velocityIterations, positionIterations);
 
-        for (auto ptr: level.queuedForRemoval) {
-
-            level.world.DestroyBody(ptr->mBody);
+        for (auto pair: myContactListener.beginContactEvents) {
+            if (pair.first->GetFilterData().categoryBits == FALL) {
+                pair.first->GetBody()->SetType(b2_dynamicBody);
+            }
+            if (pair.second->GetFilterData().categoryBits == FALL) {
+                pair.second->GetBody()->SetType(b2_dynamicBody);
+            }
+            if (pair.first->GetFilterData().categoryBits == FISH && pair.second->GetFilterData().categoryBits & (ENTITY | FALL)) {
+                level.world.DestroyBody(pair.first->GetBody());
+            }
+            if (pair.second->GetFilterData().categoryBits == FISH && pair.first->GetFilterData().categoryBits & (ENTITY | FALL)) {
+               level.world.DestroyBody(pair.second->GetBody());
+            }
         }
-        level.queuedForRemoval.clear();
+        myContactListener.beginContactEvents.clear();
+        myContactListener.endContactEvents.clear();
+
 
         window.clear();
         (*builder)->draw(window);
