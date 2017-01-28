@@ -15,7 +15,8 @@ enum _entityCategory {
     FEET =      0x0004,
     FISH =      0x0008,
     FALL =      0x0010,
-    LADDER =    0x0020
+    LADDER =    0x0020,
+    THORN =     0x0040
 };
 
 template <typename T>
@@ -468,6 +469,72 @@ public:
     b2Vec2 pos;
 };
 
+class Thorn {
+
+public:
+
+    Thorn() = default;
+
+    Thorn(b2World& world, const b2Vec2 pos, const float height, const float angle)
+        : pos(pos)
+        , height(height)
+        , angle(angle)
+    {
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+        bodyDef.angle = angle;
+
+        b2PolygonShape thorn;
+        b2Vec2 vertices[3] = { b2Vec2(0.0f, 0.0f), b2Vec2(1.0f, height), b2Vec2(2.0f, 0.0f) };
+        thorn.Set(vertices, 3);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = THORN;
+        fixtureDef.density = 1.0f;
+        fixtureDef.shape = &thorn;
+
+        body->CreateFixture(&fixtureDef);
+    }
+
+    Thorn(b2World&world, const json& thorn_data) {
+
+        pos = b2Vec2(thorn_data["pos"]["x"], thorn_data["pos"]["y"]);
+        height = thorn_data["height"];
+        angle = thorn_data["angle"];
+
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+        bodyDef.angle = angle;
+
+        b2PolygonShape thorn;
+        b2Vec2 vertices[3] = { b2Vec2(0.0f, 0.0f), b2Vec2(1.0f, height), b2Vec2(2.0f, 0.0f) };
+        thorn.Set(vertices, 3);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = THORN;
+        fixtureDef.density = 1.0f;
+        fixtureDef.shape = &thorn;
+
+        body->CreateFixture(&fixtureDef);
+    }
+
+    json getJSON() {
+        json thorn_data;
+        thorn_data["pos"] = { { "x", pos.x }, { "y", pos.y } };
+        thorn_data["height"] = height;
+        thorn_data["angle"] = angle;
+        return thorn_data;
+    }
+
+    b2Vec2 pos;
+    float height;
+    float angle;
+};
+
 class Level {
 
 public:
@@ -502,6 +569,10 @@ public:
         for (auto each: levelData["ladders"]) {
             ladders.push_back(Ladder(world, each));
         }
+
+        for (auto each: levelData["thorns"]) {
+            thorns.push_back(Thorn(world, each));
+        }
     }
 
     void dumpToFile(const std::string& path) {
@@ -517,6 +588,10 @@ public:
 
             levelData["ladders"].push_back(ladder.getJSON());
         }
+        for (auto thorn: thorns) {
+
+            levelData["thorns"].push_back(thorn.getJSON());
+        }
 
         std::ofstream file(path);
         file << std::setw(4) << levelData << std::endl;
@@ -527,6 +602,7 @@ public:
 
     std::vector<Edge> edges;
     std::vector<Ladder> ladders;
+    std::vector<Thorn> thorns;
     std::vector<TexturedBody*> texturedBodies;
     b2World world;
 };
@@ -563,6 +639,11 @@ public:
         cursor.setOutlineThickness(3);
         cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
         cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
     }
 
     void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
@@ -606,6 +687,20 @@ public:
             constructionPoints.push_back(gridSnappedPoint);
         }
 
+        if (input.lmb_released) {
+            constructionPoints.clear();
+        }
+
+        if (constructionPoints.size() == 1) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(gridSnappedPoint.y - constructionPoints[0].y, gridSnappedPoint.x - constructionPoints[0].x)*180.0f/3.14159f);
+        }
+
         if (constructionPoints.size() == 2) {
             level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], ENTITY));
             constructionPoints.clear();
@@ -616,12 +711,15 @@ public:
 
         window.draw(mGrid);
         window.draw(cursor);
+
+        if (constructionPoints.size() == 1) window.draw(shape);
     }
 
     b2Vec2 gridSnappedPoint;
     sf::CircleShape cursor;
     std::vector<b2Vec2> constructionPoints;
     sf::VertexArray mGrid;
+    sf::ConvexShape shape;
 };
 
 class FallingEdgeBuilder: public Builder {
@@ -641,6 +739,11 @@ public:
         cursor.setOutlineThickness(3);
         cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
         cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
     }
 
     void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
@@ -684,6 +787,20 @@ public:
             constructionPoints.push_back(gridSnappedPoint);
         }
 
+        if (input.lmb_released) {
+            constructionPoints.clear();
+        }
+
+        if (constructionPoints.size() == 1) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(gridSnappedPoint.y - constructionPoints[0].y, gridSnappedPoint.x - constructionPoints[0].x)*180.0f/3.14159f);
+        }
+
         if (constructionPoints.size() == 2) {
             level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], FALL));
             constructionPoints.clear();
@@ -694,12 +811,15 @@ public:
 
         window.draw(mGrid);
         window.draw(cursor);
+
+        if (constructionPoints.size() == 1) window.draw(shape);
     }
 
     b2Vec2 gridSnappedPoint;
     sf::CircleShape cursor;
     std::vector<b2Vec2> constructionPoints;
     sf::VertexArray mGrid;
+    sf::ConvexShape shape;
 };
 
 class LadderBuilder: public Builder {
@@ -719,6 +839,96 @@ public:
         cursor.setOutlineThickness(3);
         cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
         cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+        shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.0f)));
+        shape.setPoint(1, convertb2Vec2(b2Vec2(0.0f, 4.0f)));
+        shape.setPoint(2, convertb2Vec2(b2Vec2(2.0f, 4.0f)));
+        shape.setPoint(3, convertb2Vec2(b2Vec2(2.0f, 0.0f)));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+        shape.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            level->ladders.push_back(Ladder(level->world, gridSnappedPoint));
+        }
+
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+        window.draw(shape);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    sf::VertexArray mGrid;
+    sf::ConvexShape shape;
+};
+
+class ThornBuilder: public Builder {
+
+public:
+
+    ThornBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(3);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
     }
 
     void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
@@ -758,8 +968,19 @@ public:
 
         cursor.setPosition(convertb2Vec2(gridSnappedPoint));
 
+        if (input.keyReleased(sf::Keyboard::Up))    height += 1.0f;
+        if (input.keyReleased(sf::Keyboard::Down))  height -= 1.0f;
+        if (input.keyReleased(sf::Keyboard::Left))  angle += 1.5708f;
+        if (input.keyReleased(sf::Keyboard::Right)) angle -= 1.5708f;
+
+        shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.0f)));
+        shape.setPoint(1, convertb2Vec2(b2Vec2(1.0f, height)));
+        shape.setPoint(2, convertb2Vec2(b2Vec2(2.0f, 0.0f)));
+        shape.setPosition(convertb2Vec2(gridSnappedPoint));
+        shape.setRotation(-angle*180.0f/3.14159);
+
         if (input.rmb_released) {
-            level->ladders.push_back(Ladder(level->world, gridSnappedPoint));
+            level->thorns.push_back(Thorn(level->world, gridSnappedPoint, height, angle));
         }
 
     }
@@ -768,11 +989,15 @@ public:
 
         window.draw(mGrid);
         window.draw(cursor);
+        window.draw(shape);
     }
 
     b2Vec2 gridSnappedPoint;
+    float angle = 0.0f;
+    float height = 2.0f;
     sf::CircleShape cursor;
     sf::VertexArray mGrid;
+    sf::ConvexShape shape;
 };
 
 class Player : public TexturedBody {
@@ -905,8 +1130,14 @@ public:
         return mLadderContactCount > 0;
     }
 
+    bool touchingThorn() {
+
+        return mThornContactCount > 0;
+    }
+
     int mFootContactCount = 0;
     int mLadderContactCount = 0;
+    int mThornContactCount = 0;
 
 private:
     ///////////////////////////
@@ -937,6 +1168,14 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
         }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == THORN && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == THORN && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
+        }
     }
 
     void EndContact(b2Contact* contact) {
@@ -958,6 +1197,14 @@ class MyContactListener : public b2ContactListener {
         if (contact->GetFixtureB()->GetFilterData().categoryBits == LADDER && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == THORN && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == THORN && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }
     }
 
@@ -985,6 +1232,7 @@ int main() {
     builders.push_back(new EdgeBuilder());
     builders.push_back(new FallingEdgeBuilder());
     builders.push_back(new LadderBuilder());
+    builders.push_back(new ThornBuilder());
     auto builder = builders.begin();
 
     Player player(level);
