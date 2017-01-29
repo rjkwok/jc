@@ -10,13 +10,15 @@
 using json = nlohmann::json;
 
 enum _entityCategory {
-    ENTITY =    0x0001,
-    PLAYER =    0x0002,
-    FEET =      0x0004,
-    FISH =      0x0008,
-    FALL =      0x0010,
-    LADDER =    0x0020,
-    THORN =     0x0040
+    ENTITY =    1,
+    PLAYER =    2,
+    FEET =      3,
+    FISH =      8,
+    FALL =      16,
+    LADDER =    32,
+    THORN =     64,
+    GOAL =      128,
+    BORDER =    256
 };
 
 template <typename T>
@@ -281,8 +283,17 @@ public:
 
         mView.setSize(mWidth*mScale, mHeight*mScale);
         mView.setCenter(mView.getCenter() + (mV*dt));
+
+        if (mView.getCenter().x - (mWidth*mScale/2.0f) < mMin) {
+            mView.setCenter(mMin + (mWidth*mScale/2.0f), mView.getCenter().y);
+        }
+        //if (mView.getCenter().x + (mWidth*mScale/2.0f) > mMax) {
+       //     mView.setCenter(mMax - (mWidth*mScale/2.0f), mView.getCenter().y);
+       // }
     }
 
+    float mMin;
+  // float mMax;
     float mScale;
     float mWidth;
     float mHeight;
@@ -573,6 +584,21 @@ public:
         for (auto each: levelData["thorns"]) {
             thorns.push_back(Thorn(world, each));
         }
+
+        spawn = b2Vec2(levelData["spawn"]["x"], levelData["spawn"]["y"]);
+        min = levelData["min"];
+
+        b2BodyDef minDef;
+        minDef.position = b2Vec2(min, 0.0f);
+        b2EdgeShape edgeShape;
+        edgeShape.Set(b2Vec2(0.0f, 100.0f), b2Vec2(0.0f, -100.0f));
+
+        b2FixtureDef minFixtureDef;
+        minFixtureDef.shape = &edgeShape;
+        minFixtureDef.density = 0.0f;
+        minFixtureDef.filter.categoryBits = BORDER;
+
+        world.CreateBody(&minDef)->CreateFixture(&minFixtureDef);
     }
 
     void dumpToFile(const std::string& path) {
@@ -593,12 +619,18 @@ public:
             levelData["thorns"].push_back(thorn.getJSON());
         }
 
+        levelData["spawn"] = { { "x", spawn.x }, { "y", spawn.y } };
+        levelData["min"] = min;
+
         std::ofstream file(path);
         file << std::setw(4) << levelData << std::endl;
         file.close();
     }
 
     // Terrain is stored as a collection of thin static rectangles defined by point pairs
+
+    b2Vec2 spawn;
+    float min;
 
     std::vector<Edge> edges;
     std::vector<Ladder> ladders;
@@ -1005,10 +1037,14 @@ class Player : public TexturedBody {
 public:
 
     Player(Level& level) {
+        respawn(level);
+    }
+
+    void respawn(Level& level) {
 
         // Define main player bounds
         b2BodyDef boxBodyDef;
-        boxBodyDef.position = b2Vec2(0.0f, 50.0f);
+        boxBodyDef.position = level.spawn;
         boxBodyDef.fixedRotation = true;
         boxBodyDef.type = b2_dynamicBody;
 
@@ -1038,7 +1074,17 @@ public:
         mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
     }
 
+    void kill(Level& level) {
+
+        level.world.DestroyBody(mBody);
+        respawn(level);
+    }
+
     void update(const Input& input, Level& level) {
+
+        if (touchingThorn()) {
+            kill(level);
+        }
 
         if (input.keyPressed(sf::Keyboard::Space)) {
 
@@ -1152,11 +1198,11 @@ class MyContactListener : public b2ContactListener {
 
         beginContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
 
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != BORDER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET) {
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != BORDER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
         }
@@ -1182,11 +1228,11 @@ class MyContactListener : public b2ContactListener {
 
         endContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
 
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET) {
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != BORDER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET) {
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != BORDER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
         }
@@ -1212,8 +1258,6 @@ public:
 
     std::vector<std::pair<b2Fixture*, b2Fixture*> > beginContactEvents;
     std::vector<std::pair<b2Fixture*, b2Fixture*> > endContactEvents;
-
-    Level* level;
 };
 
 int main() {
@@ -1235,17 +1279,17 @@ int main() {
     builders.push_back(new ThornBuilder());
     auto builder = builders.begin();
 
-    Player player(level);
-
     MyContactListener myContactListener;
-    myContactListener.level = &level;
     level.world.SetContactListener(&myContactListener);
 
     level.loadFromFile("level.json");
+
+    Player player(level);
     //
 
     Camera camera(view);
     camera.setPixelsPerSecondSquared(8000.0f);
+    camera.mMin = level.min*40;
 
     b2DebugDraw debugDraw(window);
     debugDraw.SetFlags( b2Draw::e_shapeBit );
@@ -1295,6 +1339,11 @@ int main() {
         level.world.Step(dt, velocityIterations, positionIterations);
 
         for (auto pair: myContactListener.beginContactEvents) {
+            if ((pair.first->GetFilterData().categoryBits == GOAL && pair.second->GetFilterData().categoryBits == PLAYER) ||
+                (pair.second->GetFilterData().categoryBits == GOAL && pair.first->GetFilterData().categoryBits == PLAYER)) {
+
+                // level is completed
+            }
             if (pair.first->GetFilterData().categoryBits == FALL) {
                 pair.first->GetBody()->SetType(b2_dynamicBody);
             }
