@@ -10,15 +10,16 @@
 using json = nlohmann::json;
 
 enum _entityCategory {
-    ENTITY =    1,
-    PLAYER =    2,
-    FEET =      3,
-    FISH =      8,
-    FALL =      16,
-    LADDER =    32,
-    THORN =     64,
-    GOAL =      128,
-    BORDER =    256
+    HORIZONTAL =    1,
+    PLAYER =        2,
+    FEET =          3,
+    FISH =          8,
+    FALL =          16,
+    LADDER =        32,
+    THORN =         64,
+    GOAL =          128,
+    VERTICAL =      256,
+    SLIP =          512
 };
 
 template <typename T>
@@ -504,6 +505,7 @@ public:
         b2FixtureDef fixtureDef;
         fixtureDef.filter.categoryBits = THORN;
         fixtureDef.density = 1.0f;
+        fixtureDef.isSensor = true;
         fixtureDef.shape = &thorn;
 
         body->CreateFixture(&fixtureDef);
@@ -528,6 +530,7 @@ public:
         b2FixtureDef fixtureDef;
         fixtureDef.filter.categoryBits = THORN;
         fixtureDef.density = 1.0f;
+        fixtureDef.isSensor = true;
         fixtureDef.shape = &thorn;
 
         body->CreateFixture(&fixtureDef);
@@ -596,7 +599,7 @@ public:
         b2FixtureDef minFixtureDef;
         minFixtureDef.shape = &edgeShape;
         minFixtureDef.density = 0.0f;
-        minFixtureDef.filter.categoryBits = BORDER;
+        minFixtureDef.filter.categoryBits = VERTICAL;
 
         world.CreateBody(&minDef)->CreateFixture(&minFixtureDef);
     }
@@ -734,7 +737,16 @@ public:
         }
 
         if (constructionPoints.size() == 2) {
-            level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], ENTITY));
+
+            if (abs(constructionPoints[1].x - constructionPoints[0].x) > 0.01f && abs(constructionPoints[1].y - constructionPoints[0].y) > 0.01f) {
+                level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], SLIP));
+            }
+            if (abs(constructionPoints[1].x - constructionPoints[0].x) > 0.01f) {
+                level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], HORIZONTAL));
+            }
+            else {
+                level->edges.push_back(Edge(level->world, constructionPoints[0], constructionPoints[1], VERTICAL));
+            }
             constructionPoints.clear();
         }
     }
@@ -1104,7 +1116,7 @@ public:
         if (input.keyHeld(sf::Keyboard::D)) axis += 1.0f;
         if (input.keyHeld(sf::Keyboard::A)) axis -= 1.0f;
 
-        if (axis != 0 || touchingGround()) {
+        if (axis != 0 || (touchingGround() && !touchingSlipSurface())) {
             if (input.keyHeld(sf::Keyboard::LShift)) {
                 mBody->SetLinearVelocity(b2Vec2(axis*30.0f, mBody->GetLinearVelocity().y));
             }
@@ -1171,6 +1183,11 @@ public:
         return mFootContactCount > 0;
     }
 
+    bool touchingSlipSurface() {
+
+        return mSlipContactCount > 0;
+    }
+
     bool touchingLadder() {
 
         return mLadderContactCount > 0;
@@ -1184,6 +1201,7 @@ public:
     int mFootContactCount = 0;
     int mLadderContactCount = 0;
     int mThornContactCount = 0;
+    int mSlipContactCount = 0;
 
 private:
     ///////////////////////////
@@ -1198,13 +1216,21 @@ class MyContactListener : public b2ContactListener {
 
         beginContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
 
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != BORDER) {
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != VERTICAL) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != BORDER) {
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != VERTICAL) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount++;
         }
         if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
@@ -1228,13 +1254,21 @@ class MyContactListener : public b2ContactListener {
 
         endContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
 
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != BORDER) {
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != VERTICAL) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != BORDER) {
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != VERTICAL) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount--;
         }
         if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
@@ -1350,10 +1384,10 @@ int main() {
             if (pair.second->GetFilterData().categoryBits == FALL) {
                 pair.second->GetBody()->SetType(b2_dynamicBody);
             }
-            if (pair.first->GetFilterData().categoryBits == FISH && pair.second->GetFilterData().categoryBits & (ENTITY | FALL)) {
+            if (pair.first->GetFilterData().categoryBits == FISH && pair.second->GetFilterData().categoryBits & (HORIZONTAL | FALL)) {
                 level.world.DestroyBody(pair.first->GetBody());
             }
-            if (pair.second->GetFilterData().categoryBits == FISH && pair.first->GetFilterData().categoryBits & (ENTITY | FALL)) {
+            if (pair.second->GetFilterData().categoryBits == FISH && pair.first->GetFilterData().categoryBits & (HORIZONTAL | FALL)) {
                level.world.DestroyBody(pair.second->GetBody());
             }
         }
