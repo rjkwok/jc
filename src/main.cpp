@@ -19,7 +19,8 @@ enum _entityCategory {
     THORN =         64,
     GOAL =          128,
     VERTICAL =      256,
-    SLIP =          512
+    SLIP =          512,
+    BOULDER =      1024
 };
 
 template <typename T>
@@ -92,9 +93,9 @@ public:
     /// Draw a circle.
     void DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color) override {
 
-        sf::CircleShape shape(radius);
+        sf::CircleShape shape(40.0f*radius);
 
-        shape.setOrigin(radius, radius);
+        shape.setOrigin(40.0f*radius, 40.0f*radius);
         shape.setPosition(convertb2Vec2(center));
 
         shape.setOutlineThickness(3);
@@ -107,9 +108,9 @@ public:
     /// Draw a solid circle.
     void DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color) override {
 
-        sf::CircleShape shape(radius);
+        sf::CircleShape shape(40.0f*radius);
 
-        shape.setOrigin(radius, radius);
+        shape.setOrigin(40.0f*radius, 40.0f*radius);
         shape.setPosition(convertb2Vec2(center));
 
         shape.setOutlineThickness(3);
@@ -448,7 +449,7 @@ public:
         body->CreateFixture(&fixtureDef);
     }
 
-    Ladder(b2World&world, const json& ladder_data) {
+    Ladder(b2World& world, const json& ladder_data) {
 
         pos = b2Vec2(ladder_data["pos"]["x"], ladder_data["pos"]["y"]);
 
@@ -511,7 +512,7 @@ public:
         body->CreateFixture(&fixtureDef);
     }
 
-    Thorn(b2World&world, const json& thorn_data) {
+    Thorn(b2World& world, const json& thorn_data) {
 
         pos = b2Vec2(thorn_data["pos"]["x"], thorn_data["pos"]["y"]);
         height = thorn_data["height"];
@@ -547,6 +548,82 @@ public:
     b2Vec2 pos;
     float height;
     float angle;
+};
+
+class BoulderSpawn {
+
+public:
+
+    BoulderSpawn() = default;
+
+    BoulderSpawn(b2World& world, const b2Vec2 start, const b2Vec2 end, float radius, float bouldersPerSecond)
+        : pos(start)
+        , radius(radius)
+        , bouldersPerSecond(bouldersPerSecond)
+    {
+        direction = end - start;
+        direction.Normalize();
+    }
+
+    BoulderSpawn(b2World& world, const json& boulder_spawn_data) {
+
+        pos = b2Vec2(boulder_spawn_data["pos"]["x"], boulder_spawn_data["pos"]["y"]);
+        direction = b2Vec2(boulder_spawn_data["direction"]["x"], boulder_spawn_data["direction"]["y"]);
+        radius = boulder_spawn_data["radius"];
+        bouldersPerSecond = boulder_spawn_data["bouldersPerSecond"];
+    }
+
+    void update(b2World& world, const float dt) {
+
+        secondsSinceLastBoulder += dt;
+
+        if (secondsSinceLastBoulder >= 1.0f/bouldersPerSecond) {
+            spawnBoulder(world);
+            secondsSinceLastBoulder = 0.0f;
+        }
+    }
+
+    void spawnBoulder(b2World& world) {
+
+        b2BodyDef bodyDef;
+        bodyDef.type = b2_dynamicBody;
+        bodyDef.position = pos;
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2CircleShape boulder;
+        boulder.m_p.Set(0.0f, 0.0f);
+        boulder.m_radius = radius;
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = BOULDER;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.0f;
+        fixtureDef.shape = &boulder;
+
+        body->CreateFixture(&fixtureDef);
+
+        body->SetLinearVelocity(20.0f*direction);
+        body->SetAngularVelocity(-12.566);
+    }
+
+    json getJSON() {
+        json boulder_spawn_data;
+        boulder_spawn_data["pos"] = { { "x", pos.x }, { "y", pos.y } };
+        boulder_spawn_data["direction"] = { { "x", direction.x }, { "y", direction.y } };
+        boulder_spawn_data["radius"] = radius;
+        boulder_spawn_data["bouldersPerSecond"] = bouldersPerSecond;
+        return boulder_spawn_data;
+    }
+
+    b2Vec2 pos;
+    b2Vec2 direction;
+    float radius;
+    float bouldersPerSecond;
+
+private:
+
+    float secondsSinceLastBoulder;
 };
 
 class Level {
@@ -588,6 +665,10 @@ public:
             thorns.push_back(Thorn(world, each));
         }
 
+        for (auto each: levelData["boulderSpawns"]) {
+            boulderSpawns.push_back(BoulderSpawn(world, each));
+        }
+
         spawn = b2Vec2(levelData["spawn"]["x"], levelData["spawn"]["y"]);
         min = levelData["min"];
 
@@ -621,6 +702,10 @@ public:
 
             levelData["thorns"].push_back(thorn.getJSON());
         }
+        for (auto boulderSpawn: boulderSpawns) {
+
+            levelData["boulderSpawns"].push_back(boulderSpawn.getJSON());
+        }
 
         levelData["spawn"] = { { "x", spawn.x }, { "y", spawn.y } };
         levelData["min"] = min;
@@ -630,7 +715,12 @@ public:
         file.close();
     }
 
-    // Terrain is stored as a collection of thin static rectangles defined by point pairs
+    void update(const float dt) {
+
+        for (BoulderSpawn& boulderSpawn: boulderSpawns) {
+            boulderSpawn.update(world, dt);
+        }
+    }
 
     b2Vec2 spawn;
     float min;
@@ -638,6 +728,7 @@ public:
     std::vector<Edge> edges;
     std::vector<Ladder> ladders;
     std::vector<Thorn> thorns;
+    std::vector<BoulderSpawn> boulderSpawns;
     std::vector<TexturedBody*> texturedBodies;
     b2World world;
 };
@@ -1044,6 +1135,127 @@ public:
     sf::ConvexShape shape;
 };
 
+class BoulderSpawnBuilder: public Builder {
+
+public:
+
+    BoulderSpawnBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+
+        boulder.setOutlineThickness(3);
+        boulder.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        boulder.setFillColor(sf::Color(55, 255, 55, 155.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            constructionPoints.push_back(gridSnappedPoint);
+        }
+
+        if (input.lmb_released) {
+            constructionPoints.clear();
+        }
+
+        if (input.keyReleased(sf::Keyboard::Up))    radius += 1.0f;
+        if (input.keyReleased(sf::Keyboard::Down))  radius -= 1.0f;
+
+        if (input.keyReleased(sf::Keyboard::Left))  bouldersPerSecond -= 1.0f;
+        if (input.keyReleased(sf::Keyboard::Right)) bouldersPerSecond += 1.0f;
+
+        if (constructionPoints.size() == 1) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(gridSnappedPoint.y - constructionPoints[0].y, gridSnappedPoint.x - constructionPoints[0].x)*180.0f/3.14159f);
+
+            boulder.setRadius(radius*40.0f);
+            boulder.setOrigin(radius*40.0f, radius*40.0f);
+            boulder.setPosition(convertb2Vec2(constructionPoints[0]));
+        }
+
+        if (constructionPoints.size() == 2) {
+
+            level->boulderSpawns.push_back(BoulderSpawn(level->world, constructionPoints[0], constructionPoints[1], radius, bouldersPerSecond));
+            constructionPoints.clear();
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+
+        if (constructionPoints.size() == 1) {
+            window.draw(shape);
+            window.draw(boulder);
+        }
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
+    sf::ConvexShape shape;
+    sf::CircleShape boulder;
+    float radius = 1.0f;
+    float bouldersPerSecond = 0.2f;
+};
+
 class Player : public TexturedBody {
 
 public:
@@ -1240,11 +1452,11 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
         }
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == THORN && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == THORN && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
         }
@@ -1278,11 +1490,11 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
         }
-        if (contact->GetFixtureA()->GetFilterData().categoryBits == THORN && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }
-        if (contact->GetFixtureB()->GetFilterData().categoryBits == THORN && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }
@@ -1311,6 +1523,7 @@ int main() {
     builders.push_back(new FallingEdgeBuilder());
     builders.push_back(new LadderBuilder());
     builders.push_back(new ThornBuilder());
+    builders.push_back(new BoulderSpawnBuilder());
     auto builder = builders.begin();
 
     MyContactListener myContactListener;
@@ -1369,6 +1582,7 @@ int main() {
         (*builder)->update(input, &level, window, window_view);
 
         player.update(input, level);
+        level.update(dt);
 
         level.world.Step(dt, velocityIterations, positionIterations);
 
@@ -1388,6 +1602,12 @@ int main() {
                 level.world.DestroyBody(pair.first->GetBody());
             }
             if (pair.second->GetFilterData().categoryBits == FISH && pair.first->GetFilterData().categoryBits & (HORIZONTAL | FALL)) {
+               level.world.DestroyBody(pair.second->GetBody());
+            }
+            if (pair.first->GetFilterData().categoryBits == BOULDER && pair.second->GetFilterData().categoryBits == THORN) {
+                level.world.DestroyBody(pair.first->GetBody());
+            }
+            if (pair.second->GetFilterData().categoryBits == BOULDER && pair.first->GetFilterData().categoryBits == THORN) {
                level.world.DestroyBody(pair.second->GetBody());
             }
         }
