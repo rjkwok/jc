@@ -123,7 +123,7 @@ public:
     /// Draw a line segment.
     void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) override {
 
-        sf::RectangleShape shape(sf::Vector2f((p2 - p1).Length(), 3.0f));
+        sf::RectangleShape shape(convertb2Vec2(b2Vec2((p2 - p1).Length(), 0.03f)));
 
         shape.setOrigin(0.0f, 1.5f);
         shape.setPosition(convertb2Vec2(p1));
@@ -289,13 +289,13 @@ public:
         if (mView.getCenter().x - (mWidth*mScale/2.0f) < mMin) {
             mView.setCenter(mMin + (mWidth*mScale/2.0f), mView.getCenter().y);
         }
-        //if (mView.getCenter().x + (mWidth*mScale/2.0f) > mMax) {
-       //     mView.setCenter(mMax - (mWidth*mScale/2.0f), mView.getCenter().y);
-       // }
+        if (mView.getCenter().x + (mWidth*mScale/2.0f) > mMax) {
+            mView.setCenter(mMax - (mWidth*mScale/2.0f), mView.getCenter().y);
+        }
     }
 
     float mMin;
-  // float mMax;
+    float mMax;
     float mScale;
     float mWidth;
     float mHeight;
@@ -482,6 +482,360 @@ public:
     b2Vec2 pos;
 };
 
+class Bouncer {
+
+public:
+
+    Bouncer() = default;
+
+    Bouncer(b2World& world, const b2Vec2 pos) : pos(pos) {
+
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, 0.0f), b2Vec2(0.0f, 3.0f), b2Vec2(6.0f, 3.0f), b2Vec2(6.0f, 0.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2CircleShape circle;
+        circle.m_radius = 3.0f;
+        circle.m_p = b2Vec2(3.0f, 3.0f);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = VERTICAL;
+        fixtureDef.density = 1.0f;
+        fixtureDef.restitution = 1.0f;
+        fixtureDef.friction = 0.0f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+       /* b2FixtureDef circleFixtureDef;
+        circleFixtureDef.filter.categoryBits = VERTICAL;
+        circleFixtureDef.density = 1.0f;
+        circleFixtureDef.restitution = 1.0f;
+        circleFixtureDef.shape = &circle;
+
+        body->CreateFixture(&circleFixtureDef);*/
+    }
+
+    Bouncer(b2World& world, const json& bouncer_data) {
+
+        pos = b2Vec2(bouncer_data["pos"]["x"], bouncer_data["pos"]["y"]);
+
+        b2BodyDef bodyDef;
+        bodyDef.position = pos;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, 0.0f), b2Vec2(0.0f, 3.0f), b2Vec2(6.0f, 3.0f), b2Vec2(6.0f, 0.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2CircleShape circle;
+        circle.m_radius = 3.0f;
+        circle.m_p = b2Vec2(3.0f, 3.0f);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = VERTICAL;
+        fixtureDef.density = 1.0f;
+        fixtureDef.restitution = 1.0f;
+        fixtureDef.friction = 0.0f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+      /* b2FixtureDef circleFixtureDef;
+        circleFixtureDef.filter.categoryBits = VERTICAL;
+        circleFixtureDef.density = 1.0f;
+        circleFixtureDef.restitution = 1.0f;
+        circleFixtureDef.shape = &circle;
+
+        body->CreateFixture(&circleFixtureDef);*/
+    }
+
+    json getJSON() {
+        json bouncer_data;
+        bouncer_data["pos"] = { { "x", pos.x }, { "y", pos.y } };
+        return bouncer_data;
+    }
+
+    b2Vec2 pos;
+};
+
+class Swing {
+
+public:
+
+    Swing() = default;
+
+    Swing(b2World& world, const b2Vec2& start, const b2Vec2& end, const b2Vec2& pinA, const b2Vec2& pinB)
+        : start(start)
+        , end(end)
+        , pinA(pinA)
+        , pinB(pinB)
+    {
+        b2BodyDef bodyDef;
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.type = b2_dynamicBody;
+        bodyDef.fixedRotation = true;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = SLIP;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.7f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+        b2BodyDef pinADef;
+        pinADef.position = pinA;
+
+        b2Body* pinABody = world.CreateBody(&pinADef);
+
+        b2CircleShape pinShape;
+        pinShape.m_radius = 1.0f;
+
+        b2FixtureDef pinFixtureDef;
+        pinFixtureDef.isSensor = true;
+        pinFixtureDef.density = 0.0f;
+        pinFixtureDef.shape = &pinShape;
+
+        pinABody->CreateFixture(&pinFixtureDef);
+
+        b2BodyDef pinBDef;
+        pinBDef.position = pinB;
+
+        b2Body* pinBBody = world.CreateBody(&pinBDef);
+
+        pinBBody->CreateFixture(&pinFixtureDef);
+
+        b2RopeJointDef ropeDefA;
+        ropeDefA.localAnchorA = b2Vec2(0.0f, 0.0f);
+        ropeDefA.localAnchorB = b2Vec2(0.0f, 0.0f);
+        ropeDefA.maxLength = (start - pinA).Length();
+        ropeDefA.bodyA = body;
+        ropeDefA.bodyB = pinABody;
+
+        world.CreateJoint(&ropeDefA);
+
+        b2RopeJointDef ropeDefB;
+        ropeDefB.localAnchorA = b2Vec2((end - start).Length(), 0.0f);
+        ropeDefB.localAnchorB = b2Vec2(0.0f, 0.0f);
+        ropeDefB.maxLength = (end - pinB).Length();
+        ropeDefB.bodyA = body;
+        ropeDefB.bodyB = pinBBody;
+
+        world.CreateJoint(&ropeDefB);
+    }
+
+    Swing(b2World& world, const json& edge_data) {
+
+        start = b2Vec2(edge_data["start"]["x"], edge_data["start"]["y"]);
+        end = b2Vec2(edge_data["end"]["x"], edge_data["end"]["y"]);
+        pinA = b2Vec2(edge_data["pinA"]["x"], edge_data["pinA"]["y"]);
+        pinB = b2Vec2(edge_data["pinB"]["x"], edge_data["pinB"]["y"]);
+
+        b2BodyDef bodyDef;
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.type = b2_dynamicBody;
+        bodyDef.fixedRotation = true;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = SLIP;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.7f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+        b2BodyDef pinADef;
+        pinADef.position = pinA;
+
+        b2Body* pinABody = world.CreateBody(&pinADef);
+
+        b2CircleShape pinShape;
+        pinShape.m_radius = 1.0f;
+
+        b2FixtureDef pinFixtureDef;
+        pinFixtureDef.isSensor = true;
+        pinFixtureDef.density = 0.0f;
+        pinFixtureDef.shape = &pinShape;
+
+        pinABody->CreateFixture(&pinFixtureDef);
+
+        b2BodyDef pinBDef;
+        pinBDef.position = pinB;
+
+        b2Body* pinBBody = world.CreateBody(&pinBDef);
+
+        pinBBody->CreateFixture(&pinFixtureDef);
+
+        b2RopeJointDef ropeDefA;
+        ropeDefA.localAnchorA = b2Vec2(0.0f, 0.0f);
+        ropeDefA.localAnchorB = b2Vec2(0.0f, 0.0f);
+        ropeDefA.maxLength = (start - pinA).Length();
+        ropeDefA.bodyA = body;
+        ropeDefA.bodyB = pinABody;
+
+        world.CreateJoint(&ropeDefA);
+
+        b2RopeJointDef ropeDefB;
+        ropeDefB.localAnchorA = b2Vec2((end - start).Length(), 0.0f);
+        ropeDefB.localAnchorB = b2Vec2(0.0f, 0.0f);
+        ropeDefB.maxLength = (end - pinB).Length();
+        ropeDefB.bodyA = body;
+        ropeDefB.bodyB = pinBBody;
+
+        world.CreateJoint(&ropeDefB);
+    }
+
+    json getJSON() {
+        json edge_data;
+        edge_data["start"] = { { "x", start.x }, { "y", start.y } };
+        edge_data["end"] = { { "x", end.x }, { "y", end.y } };
+        edge_data["pinA"] = { { "x", pinA.x }, { "y", pinA.y } };
+        edge_data["pinB"] = { { "x", pinB.x }, { "y", pinB.y } };
+        return edge_data;
+    }
+
+    b2Vec2 start;
+    b2Vec2 end;
+    b2Vec2 pinA;
+    b2Vec2 pinB;
+};
+
+
+class PinnedEdge {
+
+public:
+
+    PinnedEdge() = default;
+
+    PinnedEdge(b2World& world, const b2Vec2& start, const b2Vec2& end)
+        : start(start)
+        , end(end)
+    {
+        b2BodyDef bodyDef;
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.fixedRotation = false;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = FALL;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.7f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+        b2BodyDef pinDef;
+        pinDef.position = start;
+
+        b2Body* pinBody = world.CreateBody(&pinDef);
+
+        b2CircleShape pinShape;
+        pinShape.m_radius = 0.1f;
+
+        b2FixtureDef pinFixtureDef;
+        pinFixtureDef.isSensor = true;
+        pinFixtureDef.density = 0.0f;
+        pinFixtureDef.shape = &pinShape;
+
+        pinBody->CreateFixture(&pinFixtureDef);
+
+        b2RevoluteJointDef pinJointDef;
+        pinJointDef.Initialize(body, pinBody, start);
+
+        world.CreateJoint(&pinJointDef);
+    }
+
+    PinnedEdge(b2World& world, const json& edge_data) {
+
+        start = b2Vec2(edge_data["start"]["x"], edge_data["start"]["y"]);
+        end = b2Vec2(edge_data["end"]["x"], edge_data["end"]["y"]);
+
+        b2BodyDef bodyDef;
+        bodyDef.position = start;
+        bodyDef.angle = atan2(end.y - start.y, end.x - start.x);
+        bodyDef.fixedRotation = false;
+
+        float thickness = 0.3f;
+
+        b2PolygonShape rectangle;
+        b2Vec2 vertices[4] = { b2Vec2(0.0f, thickness/2.0f), b2Vec2((end - start).Length(), thickness/2.0f), b2Vec2((end - start).Length(), -thickness/2.0f), b2Vec2(0.0f, -thickness/2.0f) };
+        rectangle.Set(vertices, 4);
+
+        b2Body* body = world.CreateBody(&bodyDef);
+
+        b2FixtureDef fixtureDef;
+        fixtureDef.filter.categoryBits = FALL;
+        fixtureDef.density = 1.0f;
+        fixtureDef.friction = 0.7f;
+        fixtureDef.shape = &rectangle;
+
+        body->CreateFixture(&fixtureDef);
+
+        b2BodyDef pinDef;
+        pinDef.position = start;
+
+        b2Body* pinBody = world.CreateBody(&pinDef);
+
+        b2CircleShape pinShape;
+        pinShape.m_radius = 0.1f;
+
+        b2FixtureDef pinFixtureDef;
+        pinFixtureDef.isSensor = true;
+        pinFixtureDef.density = 0.0f;
+        pinFixtureDef.shape = &pinShape;
+
+        pinBody->CreateFixture(&pinFixtureDef);
+
+        b2RevoluteJointDef pinJointDef;
+        pinJointDef.Initialize(body, pinBody, start);
+
+        world.CreateJoint(&pinJointDef);
+    }
+
+    json getJSON() {
+        json edge_data;
+        edge_data["start"] = { { "x", start.x }, { "y", start.y } };
+        edge_data["end"] = { { "x", end.x }, { "y", end.y } };
+        return edge_data;
+    }
+
+    b2Vec2 start;
+    b2Vec2 end;
+};
+
 class Thorn {
 
 public:
@@ -626,6 +980,21 @@ private:
     float secondsSinceLastBoulder;
 };
 
+class Enemy {
+
+/*
+    Each enemy will patrol between two fixed points
+    Each enemy has a FOV body defined
+    When player collides with enemy FOV the enemy will either try to collide with player or try to get in range of player
+    Ranged enemies will stop and launch projectiles at a fixed frequency at the player
+*/
+
+public:
+
+protected:
+
+};
+
 class Level {
 
 public:
@@ -669,8 +1038,21 @@ public:
             boulderSpawns.push_back(BoulderSpawn(world, each));
         }
 
+        for (auto each: levelData["bouncers"]) {
+            bouncers.push_back(Bouncer(world, each));
+        }
+
+        for (auto each: levelData["swings"]) {
+            swings.push_back(Swing(world, each));
+        }
+
+        for (auto each: levelData["pinnedEdges"]) {
+            pinnedEdges.push_back(PinnedEdge(world, each));
+        }
+
         spawn = b2Vec2(levelData["spawn"]["x"], levelData["spawn"]["y"]);
         min = levelData["min"];
+        max = levelData["max"];
 
         b2BodyDef minDef;
         minDef.position = b2Vec2(min, 0.0f);
@@ -706,9 +1088,23 @@ public:
 
             levelData["boulderSpawns"].push_back(boulderSpawn.getJSON());
         }
+        for (auto bouncer: bouncers) {
+
+            levelData["bouncers"].push_back(bouncer.getJSON());
+        }
+        for (auto swing: swings) {
+
+            levelData["swings"].push_back(swing.getJSON());
+        }
+
+        for (auto edge: pinnedEdges) {
+
+            levelData["pinnedEdges"].push_back(edge.getJSON());
+        }
 
         levelData["spawn"] = { { "x", spawn.x }, { "y", spawn.y } };
         levelData["min"] = min;
+        levelData["max"] = max;
 
         std::ofstream file(path);
         file << std::setw(4) << levelData << std::endl;
@@ -724,11 +1120,14 @@ public:
 
     b2Vec2 spawn;
     float min;
-
+    float max;
     std::vector<Edge> edges;
     std::vector<Ladder> ladders;
     std::vector<Thorn> thorns;
     std::vector<BoulderSpawn> boulderSpawns;
+    std::vector<Bouncer> bouncers;
+    std::vector<Swing> swings;
+    std::vector<PinnedEdge> pinnedEdges;
     std::vector<TexturedBody*> texturedBodies;
     b2World world;
 };
@@ -848,6 +1247,218 @@ public:
         window.draw(cursor);
 
         if (constructionPoints.size() == 1) window.draw(shape);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
+    sf::ConvexShape shape;
+};
+
+class PinnedEdgeBuilder: public Builder {
+
+public:
+
+    PinnedEdgeBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            constructionPoints.push_back(gridSnappedPoint);
+        }
+
+        if (input.lmb_released) {
+            constructionPoints.clear();
+        }
+
+        if (constructionPoints.size() == 1) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(gridSnappedPoint.y - constructionPoints[0].y, gridSnappedPoint.x - constructionPoints[0].x)*180.0f/3.14159f);
+        }
+
+        if (constructionPoints.size() == 2) {
+
+            level->pinnedEdges.push_back(PinnedEdge(level->world, constructionPoints[0], constructionPoints[1]));
+            constructionPoints.clear();
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+
+        if (constructionPoints.size() == 1) window.draw(shape);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    std::vector<b2Vec2> constructionPoints;
+    sf::VertexArray mGrid;
+    sf::ConvexShape shape;
+};
+
+class SwingBuilder: public Builder {
+
+public:
+
+    SwingBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+
+        if (input.rmb_released) {
+            constructionPoints.push_back(gridSnappedPoint);
+        }
+
+        if (input.lmb_released) {
+            constructionPoints.clear();
+        }
+
+        if (constructionPoints.size() == 1) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((gridSnappedPoint - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(gridSnappedPoint.y - constructionPoints[0].y, gridSnappedPoint.x - constructionPoints[0].x)*180.0f/3.14159f);
+        }
+
+        if (constructionPoints.size() == 2 || constructionPoints.size() == 3) {
+
+            shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.3f/2.0f)));
+            shape.setPoint(1, convertb2Vec2(b2Vec2((constructionPoints[1] - constructionPoints[0]).Length(), 0.3f/2.0f)));
+            shape.setPoint(2, convertb2Vec2(b2Vec2((constructionPoints[1] - constructionPoints[0]).Length(), -0.3f/2.0f)));
+            shape.setPoint(3, convertb2Vec2(b2Vec2(0.0f, -0.3f/2.0f)));
+            shape.setPosition(convertb2Vec2(constructionPoints[0]));
+            shape.setRotation(-atan2(constructionPoints[1].y - constructionPoints[0].y, constructionPoints[1].x - constructionPoints[0].x)*180.0f/3.14159f);
+        }
+
+        if (constructionPoints.size() == 4) {
+
+            level->swings.push_back(Swing(level->world, constructionPoints[0], constructionPoints[1], constructionPoints[2], constructionPoints[3]));
+            constructionPoints.clear();
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+
+        if (constructionPoints.size() >= 1) window.draw(shape);
     }
 
     b2Vec2 gridSnappedPoint;
@@ -1040,6 +1651,100 @@ public:
     sf::CircleShape cursor;
     sf::VertexArray mGrid;
     sf::ConvexShape shape;
+};
+
+class BouncerBuilder: public Builder {
+
+public:
+
+    BouncerBuilder() {
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                mGrid.append(sf::Vertex(convertb2Vec2(b2Vec2(2.0f*i, 2.0f*j)), sf::Color(255, 255, 255, 255)));
+            }
+        }
+
+        cursor = sf::CircleShape(20.0f);
+        cursor.setOrigin(20.0f, 20.0f);
+        cursor.setOutlineThickness(3);
+        cursor.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        cursor.setFillColor(sf::Color(255, 255, 255, 0.0f));
+
+        shape = sf::ConvexShape(4);
+        shape.setOutlineThickness(3);
+        shape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        shape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+        shape.setPoint(0, convertb2Vec2(b2Vec2(0.0f, 0.0f)));
+        shape.setPoint(1, convertb2Vec2(b2Vec2(0.0f, 3.0f)));
+        shape.setPoint(2, convertb2Vec2(b2Vec2(6.0f, 3.0f)));
+        shape.setPoint(3, convertb2Vec2(b2Vec2(6.0f, 0.0f)));
+
+        /*circleShape.setOutlineThickness(3);
+        circleShape.setOutlineColor(sf::Color(55, 255, 55, 200.0f));
+        circleShape.setFillColor(sf::Color(55, 255, 55, 155.0f));
+        circleShape.setRadius(40.0f*3.0f);
+        circleShape.setOrigin(40.0f*3.0f, 40.0f*3.0f);*/
+    }
+
+    void update(const Input& input, Level* level, sf::RenderWindow& window, sf::View& windowView) override {
+
+        b2Vec2 selectedPoint = convertVector2f(input.scene_mouse);
+
+        /*
+            a     b
+              [ ]
+            c     d
+        */
+
+        b2Vec2 a = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 b = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, ceil(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 c = b2Vec2(floor(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+        b2Vec2 d = b2Vec2(ceil(selectedPoint.x/2.0f)*2.0f, floor(selectedPoint.y/2.0f)*2.0f);
+
+        if ((a - selectedPoint).Length() < (b - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (c - selectedPoint).Length() &&
+            (a - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = a;
+        }
+        else if ((b - selectedPoint).Length() < (c - selectedPoint).Length() &&
+                 (b - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = b;
+        }
+        else if ((c - selectedPoint).Length() < (d - selectedPoint).Length())
+        {
+            gridSnappedPoint = c;
+        }
+        else
+        {
+            gridSnappedPoint = d;
+        }
+
+        cursor.setPosition(convertb2Vec2(gridSnappedPoint));
+        shape.setPosition(convertb2Vec2(gridSnappedPoint));
+       // circleShape.setPosition(convertb2Vec2(gridSnappedPoint + b2Vec2(3.0f, 3.0f)));
+
+        if (input.rmb_released) {
+            level->bouncers.push_back(Bouncer(level->world, gridSnappedPoint));
+        }
+
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(mGrid);
+        window.draw(cursor);
+        window.draw(shape);
+       // window.draw(circleShape);
+    }
+
+    b2Vec2 gridSnappedPoint;
+    sf::CircleShape cursor;
+    sf::VertexArray mGrid;
+    sf::ConvexShape shape;
+   // sf::CircleShape circleShape;
 };
 
 class ThornBuilder: public Builder {
@@ -1524,6 +2229,9 @@ int main() {
     builders.push_back(new LadderBuilder());
     builders.push_back(new ThornBuilder());
     builders.push_back(new BoulderSpawnBuilder());
+    builders.push_back(new BouncerBuilder());
+    builders.push_back(new SwingBuilder());
+    builders.push_back(new PinnedEdgeBuilder());
     auto builder = builders.begin();
 
     MyContactListener myContactListener;
@@ -1537,9 +2245,11 @@ int main() {
     Camera camera(view);
     camera.setPixelsPerSecondSquared(8000.0f);
     camera.mMin = level.min*40;
+    camera.mMax = level.max*40;
 
     b2DebugDraw debugDraw(window);
-    debugDraw.SetFlags( b2Draw::e_shapeBit );
+    debugDraw.SetFlags( b2Draw::e_shapeBit);
+    debugDraw.AppendFlags( b2Draw::e_jointBit );
     level.world.SetDebugDraw(&debugDraw);
 
     Input input;
