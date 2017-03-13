@@ -1,0 +1,104 @@
+#ifndef JC_CONTACT
+#define JC_CONTACT
+
+#include "Box2D/Box2D.h"
+
+enum _entityCategory {
+    HORIZONTAL =    1,
+    PLAYER =        2,
+    FEET =          3,
+    FISH =          8,
+    FALL =          16,
+    LADDER =        32,
+    THORN =         64,
+    GOAL =          128,
+    VERTICAL =      256,
+    SLIP =          512,
+    BOULDER =      1024
+};
+
+class MyContactListener : public b2ContactListener {
+
+    void BeginContact(b2Contact* contact) {
+
+        beginContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
+
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount++;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount++;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == LADDER && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
+        }
+        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
+        }
+        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
+        }
+    }
+
+    void EndContact(b2Contact* contact) {
+
+        endContactEvents.push_back(std::pair<b2Fixture*, b2Fixture*>(contact->GetFixtureA(), contact->GetFixtureB()));
+
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits != VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits != VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mFootContactCount--;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == FEET && contact->GetFixtureB()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == FEET && contact->GetFixtureA()->GetFilterData().categoryBits == SLIP) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mSlipContactCount--;
+        }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == LADDER && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == LADDER && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
+        }
+        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
+        }
+        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
+        }
+    }
+
+public:
+
+    std::vector<std::pair<b2Fixture*, b2Fixture*> > beginContactEvents;
+    std::vector<std::pair<b2Fixture*, b2Fixture*> > endContactEvents;
+};
+
+#endif
