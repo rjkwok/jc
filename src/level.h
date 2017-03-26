@@ -10,8 +10,6 @@
 #include <sstream>
 #include <fstream>
 
-#include "contact.h"
-
 class Edge {
 
 public:
@@ -653,11 +651,17 @@ public:
         world = new b2World(b2Vec2(0.0f, -90.81f));
     }
 
+    void setContactListener(b2ContactListener* listener) {
+        myContactListener = listener;
+        world->SetContactListener(listener);
+    }
+
     void loadFromFile(const std::string& path) {
 
         // reset
         world = new b2World(b2Vec2(0.0f, -90.81f));
-        level.world->SetContactListener(&myContactListener);
+
+        if (myContactListener)  world->SetContactListener(myContactListener);
 
         edges.clear();
         ladders.clear();
@@ -784,7 +788,7 @@ public:
     std::vector<Bouncer> bouncers;
     std::vector<Swing> swings;
     std::vector<PinnedEdge> pinnedEdges;
-    MyContactListener myContactListener;
+    b2ContactListener* myContactListener;
     b2World* world;
 };
 

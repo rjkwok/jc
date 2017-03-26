@@ -2,20 +2,7 @@
 #define JC_CONTACT
 
 #include "Box2D/Box2D.h"
-
-enum _entityCategory {
-    HORIZONTAL =    1,
-    PLAYER =        2,
-    FEET =          3,
-    FISH =          8,
-    FALL =          16,
-    LADDER =        32,
-    THORN =         64,
-    GOAL =          128,
-    VERTICAL =      256,
-    SLIP =          512,
-    BOULDER =      1024
-};
+#include "player.h"
 
 class MyContactListener : public b2ContactListener {
 

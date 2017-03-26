@@ -103,6 +103,9 @@ int main() {
     double dt = 0;
     //
 
+    MyContactListener myContactListener;
+    level.setContactListener(&myContactListener);
+
     while (window.isOpen()) {
 
         //loop header
@@ -144,7 +147,7 @@ int main() {
 
         level.world->Step(dt, velocityIterations, positionIterations);
 
-        for (auto pair: level.myContactListener.beginContactEvents) {
+        for (auto pair: myContactListener.beginContactEvents) {
             if ((pair.first->GetFilterData().categoryBits == GOAL && pair.second->GetFilterData().categoryBits == PLAYER) ||
                 (pair.second->GetFilterData().categoryBits == GOAL && pair.first->GetFilterData().categoryBits == PLAYER)) {
 
@@ -169,8 +172,8 @@ int main() {
                level.world->DestroyBody(pair.second->GetBody());
             }
         }
-        level.myContactListener.beginContactEvents.clear();
-        level.myContactListener.endContactEvents.clear();
+        myContactListener.beginContactEvents.clear();
+        myContactListener.endContactEvents.clear();
 
 
         window.clear();
