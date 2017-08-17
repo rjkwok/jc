@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////
 //
 // SFML - Simple and Fast Multimedia Library
-// Copyright (C) 2007-2013 Laurent Gomila (laurent.gom@gmail.com)
+// Copyright (C) 2007-2015 Laurent Gomila (laurent@sfml-dev.org)
 //
 // This software is provided 'as-is', without any express or implied warranty.
 // In no event will the authors be held liable for any damages arising from the use of this software.
@@ -29,6 +29,7 @@
 // Headers
 ////////////////////////////////////////////////////////////
 #include <SFML/Graphics/Export.hpp>
+#include <SFML/Graphics/ClippingMask.hpp>
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/View.hpp>
@@ -50,7 +51,7 @@ class Drawable;
 ////////////////////////////////////////////////////////////
 class SFML_GRAPHICS_API RenderTarget : NonCopyable
 {
-public :
+public:
 
     ////////////////////////////////////////////////////////////
     /// \brief Destructor
@@ -70,11 +71,65 @@ public :
     void clear(const Color& color = Color(0, 0, 0, 255));
 
     ////////////////////////////////////////////////////////////
+    /// \brief Clear the active clipping area
+    ///
+    /// This is equivalent to calling setClippingArea(IntRect())
+    ///
+    /// \see setClippingArea, getClippingArea
+    ///
+    ////////////////////////////////////////////////////////////
+    void clearClippingArea();
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Clear the active clipping mask
+    ///
+    /// This is equivalent to calling setClippingMask(ClippingMask())
+    ///
+    /// \see setClippingMask, getClippingMask
+    ///
+    ////////////////////////////////////////////////////////////
+    void clearClippingMask();
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Set the active clipping area
+    ///
+    /// The clipping area is defined as an IntRect. It is very
+    /// important to remember the clipping is done in window
+    /// coordinates, not scene coordinates.
+    /// This means {0, 0} will be the top left of your window,
+    /// it is not affected by the view.
+    /// The clipping area will stay active until it is cleared
+    /// or another one is set.
+    ///
+    /// \param area New clipping area to use
+    ///
+    /// \see clearClippingArea, getClippingArea
+    ///
+    ////////////////////////////////////////////////////////////
+    void setClippingArea(IntRect area);
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Set the active clipping mask
+    ///
+    /// The clipping mask is a set of drawables which which can
+    /// be used to define custom shapes and pixel based masks.
+    /// The clipping mask will stay active until it is cleared
+    /// or another one is set.
+    ///
+    /// \param mask New clipping mask to use
+    ///
+    /// \see clearClippingMask, getClippingMask
+    ///
+    ////////////////////////////////////////////////////////////
+    void setClippingMask(const ClippingMask& mask);
+
+
+    ////////////////////////////////////////////////////////////
     /// \brief Change the current active view
     ///
     /// The view is like a 2D camera, it controls which part of
     /// the 2D scene is visible, and how it is viewed in the
-    /// render-target.
+    /// render target.
     /// The new view will affect everything that is drawn, until
     /// another view is set.
     /// The render target keeps its own copy of the view object,
@@ -89,6 +144,26 @@ public :
     ///
     ////////////////////////////////////////////////////////////
     void setView(const View& view);
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Get the clipping area that is in use in the render target
+    ///
+    /// \return The clipping area that is currently used
+    ///
+    /// \see clearClippingArea, setClippingArea
+    ///
+    ////////////////////////////////////////////////////////////
+    IntRect getClippingArea() const;
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Get the clipping mask that is in use in the render target
+    ///
+    /// \return The clipping mask object that is currently used
+    ///
+    /// \see clearClippingMask, setClippingMask
+    ///
+    ////////////////////////////////////////////////////////////
+    const ClippingMask& getClippingMask() const;
 
     ////////////////////////////////////////////////////////////
     /// \brief Get the view currently in use in the render target
@@ -133,7 +208,7 @@ public :
     ///        coordinates, using the current view
     ///
     /// This function is an overload of the mapPixelToCoords
-    /// function that implicitely uses the current view.
+    /// function that implicitly uses the current view.
     /// It is equivalent to:
     /// \code
     /// target.mapPixelToCoords(point, target.getView());
@@ -152,14 +227,14 @@ public :
     /// \brief Convert a point from target coordinates to world coordinates
     ///
     /// This function finds the 2D position that matches the
-    /// given pixel of the render-target. In other words, it does
+    /// given pixel of the render target. In other words, it does
     /// the inverse of what the graphics card does, to find the
     /// initial position of a rendered pixel.
     ///
     /// Initially, both coordinate systems (world units and target pixels)
     /// match perfectly. But if you define a custom view or resize your
-    /// render-target, this assertion is not true anymore, ie. a point
-    /// located at (10, 50) in your render-target may map to the point
+    /// render target, this assertion is not true anymore, i.e. a point
+    /// located at (10, 50) in your render target may map to the point
     /// (150, 75) in your 2D world -- if the view is translated by (140, 25).
     ///
     /// For render-windows, this function is typically used to find
@@ -167,7 +242,7 @@ public :
     ///
     /// This version uses a custom view for calculations, see the other
     /// overload of the function if you want to use the current view of the
-    /// render-target.
+    /// render target.
     ///
     /// \param point Pixel to convert
     /// \param view The view to use for converting the point
@@ -184,7 +259,7 @@ public :
     ///        coordinates, using the current view
     ///
     /// This function is an overload of the mapCoordsToPixel
-    /// function that implicitely uses the current view.
+    /// function that implicitly uses the current view.
     /// It is equivalent to:
     /// \code
     /// target.mapCoordsToPixel(point, target.getView());
@@ -202,19 +277,19 @@ public :
     ////////////////////////////////////////////////////////////
     /// \brief Convert a point from world coordinates to target coordinates
     ///
-    /// This function finds the pixel of the render-target that matches
+    /// This function finds the pixel of the render target that matches
     /// the given 2D point. In other words, it goes through the same process
     /// as the graphics card, to compute the final position of a rendered point.
     ///
     /// Initially, both coordinate systems (world units and target pixels)
     /// match perfectly. But if you define a custom view or resize your
-    /// render-target, this assertion is not true anymore, ie. a point
+    /// render target, this assertion is not true anymore, i.e. a point
     /// located at (150, 75) in your 2D world may map to the pixel
-    /// (10, 50) of your render-target -- if the view is translated by (140, 25).
+    /// (10, 50) of your render target -- if the view is translated by (140, 25).
     ///
     /// This version uses a custom view for calculations, see the other
     /// overload of the function if you want to use the current view of the
-    /// render-target.
+    /// render target.
     ///
     /// \param point Point to convert
     /// \param view The view to use for converting the point
@@ -227,7 +302,7 @@ public :
     Vector2i mapCoordsToPixel(const Vector2f& point, const View& view) const;
 
     ////////////////////////////////////////////////////////////
-    /// \brief Draw a drawable object to the render-target
+    /// \brief Draw a drawable object to the render target
     ///
     /// \param drawable Object to draw
     /// \param states   Render states to use for drawing
@@ -244,7 +319,7 @@ public :
     /// \param states      Render states to use for drawing
     ///
     ////////////////////////////////////////////////////////////
-    void draw(const Vertex* vertices, unsigned int vertexCount,
+    void draw(const Vertex* vertices, std::size_t vertexCount,
               PrimitiveType type, const RenderStates& states = RenderStates::Default);
 
     ////////////////////////////////////////////////////////////
@@ -259,7 +334,7 @@ public :
     /// \brief Save the current OpenGL render states and matrices
     ///
     /// This function can be used when you mix SFML drawing
-    /// and direct OpenGL rendering. Combined with PopGLStates,
+    /// and direct OpenGL rendering. Combined with popGLStates,
     /// it ensures that:
     /// \li SFML's internal states are not messed up by your OpenGL code
     /// \li your OpenGL states are not modified by a call to a SFML function
@@ -281,7 +356,7 @@ public :
     /// It is provided for convenience, but the best results will
     /// be achieved if you handle OpenGL states yourself (because
     /// you know which states have really changed, and need to be
-    /// saved and restored). Take a look at the ResetGLStates
+    /// saved and restored). Take a look at the resetGLStates
     /// function if you do so.
     ///
     /// \see popGLStates
@@ -323,7 +398,7 @@ public :
     ////////////////////////////////////////////////////////////
     void resetGLStates();
 
-protected :
+protected:
 
     ////////////////////////////////////////////////////////////
     /// \brief Default constructor
@@ -343,6 +418,18 @@ protected :
 private:
 
     ////////////////////////////////////////////////////////////
+    /// \brief Apply the current clipping area
+    ///
+    ////////////////////////////////////////////////////////////
+    void applyCurrentClippingArea();
+
+    ////////////////////////////////////////////////////////////
+    /// \brief Apply the current clipping mask
+    ///
+    ////////////////////////////////////////////////////////////
+    void applyCurrentClippingMask();
+
+    ////////////////////////////////////////////////////////////
     /// \brief Apply the current view
     ///
     ////////////////////////////////////////////////////////////
@@ -354,7 +441,7 @@ private:
     /// \param mode Blending mode to apply
     ///
     ////////////////////////////////////////////////////////////
-    void applyBlendMode(BlendMode mode);
+    void applyBlendMode(const BlendMode& mode);
 
     ////////////////////////////////////////////////////////////
     /// \brief Apply a new transform
@@ -402,20 +489,25 @@ private:
     {
         enum {VertexCacheSize = 4};
 
-        bool      glStatesSet;    ///< Are our internal GL states set yet?
-        bool      viewChanged;    ///< Has the current view changed since last draw?
-        BlendMode lastBlendMode;  ///< Cached blending mode
-        Uint64    lastTextureId;  ///< Cached texture
-        bool      useVertexCache; ///< Did we previously use the vertex cache?
+        bool      glStatesSet;                  ///< Are our internal GL states set yet?
+        bool      viewChanged;                  ///< Has the current view changed since last draw?
+        bool      clippingAreaChanged;          ///< Has the current clipping area changed since last draw?
+        bool      clippingMaskChanged;          ///< Has the current clipping mask changed since last draw?
+        bool      scissorTestEnabled;           ///< Is the scissor test enabled?
+        BlendMode lastBlendMode;                ///< Cached blending mode
+        Uint64    lastTextureId;                ///< Cached texture
+        bool      useVertexCache;               ///< Did we previously use the vertex cache?
         Vertex    vertexCache[VertexCacheSize]; ///< Pre-transformed vertices cache
     };
 
     ////////////////////////////////////////////////////////////
     // Member data
     ////////////////////////////////////////////////////////////
-    View        m_defaultView; ///< Default view
-    View        m_view;        ///< Current view
-    StatesCache m_cache;       ///< Render states cache
+    View         m_defaultView;  ///< Default view
+    View         m_view;         ///< Current view
+    IntRect      m_clippingArea; ///< Current clipping area
+    ClippingMask m_clippingMask; ///< Current clipping mask
+    StatesCache  m_cache;        ///< Render states cache
 };
 
 } // namespace sf
@@ -428,7 +520,7 @@ private:
 /// \class sf::RenderTarget
 /// \ingroup graphics
 ///
-/// sf::RenderTarget defines the common behaviour of all the
+/// sf::RenderTarget defines the common behavior of all the
 /// 2D render targets usable in the graphics module. It makes
 /// it possible to draw 2D entities like sprites, shapes, text
 /// without using any OpenGL command directly.

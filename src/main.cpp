@@ -17,45 +17,7 @@ using json = nlohmann::json;
 #include "camera.h"
 #include "builder.h"
 
-struct Campaign {
-
-    Campaign() = default;
-    Campaign(const std::string& title, const std::string& cover_path, const std::string boss_path)
-        : title(title)
-        , boss_path(boss_path)
-    {
-        cover = new sf::Texture();
-        cover->loadFromFile(cover_path);
-    }
-
-    ~Campaign() {
-        delete cover;
-    }
-
-    void addLevel(const std::string& path) {
-        level_paths.push_back(path);
-    }
-
-    std::string title;
-
-    std::vector<std::string> level_paths;
-    std::string boss_path;
-
-    // cover image resource
-    sf::Texture* cover;
-};
-
 int main() {
-
-    std::vector<Campaign> campaigns;
-
-    campaigns.push_back(Campaign("A Gift Of Religion", "", ""));
-    campaigns[0].addLevel("level.json");
-
-    // generate campaign menu from the campaigns vector
-
-    // hardcode top-level campaign-options-quit menu
-    sf::Texture* title_card = new sf::Texture();
 
     //sf::RenderWindow window(sf::VideoMode::getFullscreenModes()[0], "Debug", sf::Style::Fullscreen);
     sf::RenderWindow window(sf::VideoMode(1280, 720), "Debug");
@@ -63,7 +25,6 @@ int main() {
     sf::View window_view = window.getView();
 
     // Create the world
-
     Level level;
 
     std::vector<Builder*> builders;

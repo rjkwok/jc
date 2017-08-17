@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////
 //
 // SFML - Simple and Fast Multimedia Library
-// Copyright (C) 2007-2013 Laurent Gomila (laurent.gom@gmail.com)
+// Copyright (C) 2007-2015 Laurent Gomila (laurent@sfml-dev.org)
 //
 // This software is provided 'as-is', without any express or implied warranty.
 // In no event will the authors be held liable for any damages arising from the use of this software.
@@ -46,7 +46,7 @@ namespace priv
 ////////////////////////////////////////////////////////////
 class SFML_GRAPHICS_API RenderTexture : public RenderTarget
 {
-public :
+public:
 
     ////////////////////////////////////////////////////////////
     /// \brief Default constructor
@@ -73,17 +73,21 @@ public :
     /// doing anything with the render-texture.
     /// The last parameter, \a depthBuffer, is useful if you want
     /// to use the render-texture for 3D OpenGL rendering that requires
-    /// a depth-buffer. Otherwise it is unnecessary, and you should
+    /// a depth buffer. Otherwise it is unnecessary, and you should
     /// leave this parameter to false (which is its default value).
     ///
-    /// \param width       Width of the render-texture
-    /// \param height      Height of the render-texture
-    /// \param depthBuffer Do you want this render-texture to have a depth buffer?
+    /// Note: If a render texture is created without a stencil buffer then clipping masks
+    /// will fail to work.
+    ///
+    /// \param width         Width of the render-texture
+    /// \param height        Height of the render-texture
+    /// \param depthBuffer   Do you want this render-texture to have a depth buffer?
+    /// \param stencilBuffer Do you want this render-texture to have a depth buffer?
     ///
     /// \return True if creation has been successful
     ///
     ////////////////////////////////////////////////////////////
-    bool create(unsigned int width, unsigned int height, bool depthBuffer = false);
+    bool create(unsigned int width, unsigned int height, bool depthBuffer = false, bool stencilBuffer = true);
 
     ////////////////////////////////////////////////////////////
     /// \brief Enable or disable texture smoothing
@@ -186,7 +190,7 @@ public :
     ////////////////////////////////////////////////////////////
     const Texture& getTexture() const;
 
-private :
+private:
 
     ////////////////////////////////////////////////////////////
     /// \brief Activate the target for rendering
