@@ -41,7 +41,9 @@ int main() {
 
     level.loadFromFile("level.json");
 
-    Player player(level);
+    sf::Texture texture;
+    texture.loadFromFile("laughing.png");
+    Player player(level, texture);
     //
 
     Camera camera(view);
@@ -140,6 +142,7 @@ int main() {
         window.clear();
         (*builder)->draw(window);
         level.world->DrawDebugData();
+        player.draw(window);
         window.display();
     }
 

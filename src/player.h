@@ -13,8 +13,13 @@ class Player {
 
 public:
 
-    Player(Level& level) {
+    Player(Level& level, sf::Texture& texture) {
         respawn(level);
+
+        sprite.setTexture(texture, true);
+        sf::Vector2u bounds = texture.getSize();
+        sprite.setOrigin(bounds.x/2.0f, bounds.y);
+        sprite.setScale(0.3f, 0.3f);
     }
 
     void respawn(Level& level) {
@@ -49,6 +54,10 @@ public:
         sensorFixtureDef.isSensor = true;
 
         mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
+
+
+
+
     }
 
     void kill(Level& level) {
@@ -98,6 +107,16 @@ public:
 
         if (axis > 0)   mFacingRight = true;
         if (axis < 0)   mFacingRight = false;
+
+        sprite.setPosition(convertb2Vec2(getPosition() - b2Vec2(0.0f, 1.0f)));
+
+        if (mFacingRight)   sprite.setScale(0.6f, 0.6f);
+        else                sprite.setScale(-0.6f, 0.6f);
+    }
+
+    void draw(sf::RenderWindow& window) {
+
+        window.draw(sprite);
     }
 
     b2Vec2 getPosition() const {
