@@ -11,7 +11,10 @@
 
 class Player {
 
+
 public:
+
+    float mHealthPercent;
 
     Player(Level& level, sf::Texture& texture) {
         respawn(level);
@@ -68,6 +71,8 @@ public:
     }
 
     void update(const Input& input, Level& level, const float dt) {
+
+        mHealthPercent = (mHealth/float(mMaxHealth));
 
         if (touchingThorn()) {
 

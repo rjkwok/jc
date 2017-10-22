@@ -16,6 +16,7 @@ using json = nlohmann::json;
 #include "draw.h"
 #include "camera.h"
 #include "builder.h"
+#include "hud.h"
 
 int main() {
 
@@ -107,6 +108,7 @@ int main() {
 
         player.update(input, level, dt);
         level.update(dt);
+        hudUpdate(window, window_view, player.mHealthPercent);
 
         level.world->Step(dt, velocityIterations, positionIterations);
 
@@ -139,7 +141,6 @@ int main() {
         myContactListener.endContactEvents.clear();
 
 
-        window.clear();
         (*builder)->draw(window);
         level.world->DrawDebugData();
         player.draw(window);
