@@ -68,25 +68,21 @@ public:
     }
 
     void update(const Input& input, Level& level, const float dt) {
-        //debugiing couts
-        std::cout << "mHaveIFrames: " << mHaveIFrames << " mIFrameTime: " << mIFrameTime 
-        <<"mHealth"<< mHealth << std::endl;
 
         if (touchingThorn()) {
 
             //edited to add a health bar of maxHealth, and gave player i frames after getting hurt
 
             if (mHaveIFrames == false) {
-                
+
                 mHaveIFrames = true;
 
                 if (mHealth != 1) {
                     mHealth--;
                 } else {
                 kill(level);
-                std::cout << "KILLED!!!" << std::endl;
                 }
-            } 
+            }
 
             if (mIFrameTime > mMaxIFrameTime) {
                 mHaveIFrames = false;
