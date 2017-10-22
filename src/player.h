@@ -64,12 +64,38 @@ public:
 
         level.world->DestroyBody(mBody);
         respawn(level);
+        mHealth = mMaxHealth;
     }
 
-    void update(const Input& input, Level& level) {
+    void update(const Input& input, Level& level, const float dt) {
+        //debugiing couts
+        std::cout << "mHaveIFrames: " << mHaveIFrames << " mIFrameTime: " << mIFrameTime 
+        <<"mHealth"<< mHealth << std::endl;
 
         if (touchingThorn()) {
-            kill(level);
+
+            //edited to add a health bar of maxHealth, and gave player i frames after getting hurt
+
+            if (mHaveIFrames == false) {
+                
+                mHaveIFrames = true;
+
+                if (mHealth != 1) {
+                    mHealth--;
+                } else {
+                kill(level);
+                std::cout << "KILLED!!!" << std::endl;
+                }
+            } 
+
+            if (mIFrameTime > mMaxIFrameTime) {
+                mHaveIFrames = false;
+                mIFrameTime = 0;
+            }
+        }
+
+        if (mHaveIFrames == true){
+            mIFrameTime += dt;  //net change in time since damage
         }
 
         if (input.keyPressed(sf::Keyboard::Space)) {
@@ -155,7 +181,12 @@ private:
     ///////////////////////////
 
     bool mFacingRight = true;
+    bool mHaveIFrames = false;
     int mExtraJumps = 0;
+    int mHealth = 3;
+    float mMaxIFrameTime = 1; //in seconds
+    const int mMaxHealth = 3;
+    float mIFrameTime = 0;
 };
 
 #endif

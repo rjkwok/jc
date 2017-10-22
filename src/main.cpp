@@ -105,7 +105,7 @@ int main() {
 
         (*builder)->update(input, &level);
 
-        player.update(input, level);
+        player.update(input, level, dt);
         level.update(dt);
 
         level.world->Step(dt, velocityIterations, positionIterations);
