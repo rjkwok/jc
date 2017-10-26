@@ -18,8 +18,7 @@ void hudUpdate (sf::RenderWindow& window, sf::View window_view, float mHealthPer
 	healthBarOutline.setFillColor(sf::Color::Transparent);
 	healthBarOutline.setOutlineThickness(5);
 	healthBarOutline.setPosition(20, 20);
-	std::cout << "HealthPercent  "<< mHealthPercent << "  healthLenght  " << healthLenght << std::endl;
-
+	
 	//draw health bar
 	sf::RectangleShape healthBar;
 	healthBar.setSize(sf::Vector2f(healthLenght, maxHealthWidth));

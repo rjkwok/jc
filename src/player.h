@@ -76,8 +76,7 @@ public:
 
         if (touchingThorn()) {
 
-            //edited to add a health bar of maxHealth, and gave player i frames after getting hurt
-
+            //if no i frames give i frames and take health, if at min health kil
             if (mHaveIFrames == false) {
 
                 mHaveIFrames = true;
@@ -89,10 +88,11 @@ public:
                 }
             }
 
-            if (mIFrameTime > mMaxIFrameTime) {
-                mHaveIFrames = false;
-                mIFrameTime = 0;
-            }
+        }
+
+        if (mIFrameTime > mMaxIFrameTime) {
+            mHaveIFrames = false;
+            mIFrameTime = 0;
         }
 
         if (mHaveIFrames == true){
@@ -141,9 +141,21 @@ public:
         else                sprite.setScale(-0.6f, 0.6f);
     }
 
-    void draw(sf::RenderWindow& window) {
+    void draw(sf::RenderWindow& window, const float dt) {
+        if (mHaveIFrames == 1){
+            if (mFlashTimer <= mMaxFlashTime){
+               window.draw(sprite); 
+               mFlashTimer += dt;
+            }else if(mFlashTimer > mMaxFlashTime && mFlashTimer < (2 * mMaxFlashTime)){
+                mFlashTimer += dt;
+            }else{
+                mFlashTimer = 0;
+            }
 
-        window.draw(sprite);
+        }else{
+            mFlashTimer = 0;
+            window.draw(sprite);  
+        }
     }
 
     b2Vec2 getPosition() const {
@@ -185,9 +197,11 @@ private:
     bool mHaveIFrames = false;
     int mExtraJumps = 0;
     int mHealth = 3;
-    float mMaxIFrameTime = 1; //in seconds
+    float mMaxIFrameTime = 0.5; //in seconds
     const int mMaxHealth = 3;
     float mIFrameTime = 0;
+    float mFlashTimer = 0;
+    float mMaxFlashTime = 0.08;
 };
 
 #endif

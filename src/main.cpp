@@ -143,7 +143,7 @@ int main() {
 
         (*builder)->draw(window);
         level.world->DrawDebugData();
-        player.draw(window);
+        player.draw(window,dt);
         window.display();
     }
 
