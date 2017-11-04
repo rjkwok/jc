@@ -151,7 +151,7 @@ public:
             }else{
                 mFlashTimer = 0;
             }
-
+            
         }else{
             mFlashTimer = 0;
             window.draw(sprite);  

@@ -17,6 +17,7 @@ using json = nlohmann::json;
 #include "camera.h"
 #include "builder.h"
 #include "hud.h"
+#include "roach.h"
 
 int main() {
 
@@ -43,8 +44,11 @@ int main() {
     level.loadFromFile("level.json");
 
     sf::Texture texture;
+    sf::Texture roachTexture;
     texture.loadFromFile("laughing.png");
+    roachTexture.loadFromFile("roachTextureTest");
     Player player(level, texture);
+    Roach roachTest(level, roachTexture);
     //
 
     Camera camera(view);
