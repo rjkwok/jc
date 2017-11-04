@@ -70,6 +70,28 @@ public:
         mHealth = mMaxHealth;
     }
 
+    void jump() {
+        if (touchingGround()) {
+            mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
+        }
+        else if (mDoubleJumpEnabled && mExtraJumps > 0) {
+            mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
+            --mExtraJumps;
+        }
+    }
+
+    void climb() {
+        if (mLadderClimbEnabled && touchingLadder()) {
+            mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 20.0f));
+        }
+    }
+
+    void walk(float x_velocity) {
+        if (x_velocity != 0 || (touchingGround() && !touchingSlipSurface())) {
+            mBody->SetLinearVelocity(b2Vec2(x_velocity, mBody->GetLinearVelocity().y));
+        }
+    }
+
     void update(const Input& input, Level& level, const float dt) {
 
         mHealthPercent = (mHealth/float(mMaxHealth));
@@ -99,44 +121,34 @@ public:
             mIFrameTime += dt;  //net change in time since damage
         }
 
+        // Reset x velocity to 0
+        mBody->SetLinearVelocity(b2Vec2(0, mBody->GetLinearVelocity().y));
+
+        // Mapping of user inputs to player actions
         if (input.keyPressed(sf::Keyboard::Space)) {
 
-            if (touchingGround()) {
-                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
-            }
-            else if (mExtraJumps > 0) {
-                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 30.0f));
-                --mExtraJumps;
-            }
+            jump();
+        }
+        if (input.keyHeld(sf::Keyboard::W)) {
+
+            climb();
+        }
+        if (input.keyHeld(sf::Keyboard::D)) {
+
+            walk(mSprintEnabled && input.keyHeld(sf::Keyboard::LShift) ? 2*mWalkSpeed : mWalkSpeed);
+            mFacingRight = true;
+        }
+        if (input.keyHeld(sf::Keyboard::A)) {
+
+            walk(mSprintEnabled && input.keyHeld(sf::Keyboard::LShift) ? -2*mWalkSpeed : -mWalkSpeed);
+            mFacingRight = false;
         }
 
+        // If the player has recontacted the ground this tick, "restock" the amount of extra jumps for the next tick
         if (touchingGround())   mExtraJumps = 1;
 
-        float axis = 0.0f;
-
-        if (input.keyHeld(sf::Keyboard::D)) axis += 1.0f;
-        if (input.keyHeld(sf::Keyboard::A)) axis -= 1.0f;
-
-        if (axis != 0 || (touchingGround() && !touchingSlipSurface())) {
-            if (input.keyHeld(sf::Keyboard::LShift)) {
-                mBody->SetLinearVelocity(b2Vec2(axis*30.0f, mBody->GetLinearVelocity().y));
-            }
-            else {
-                mBody->SetLinearVelocity(b2Vec2(axis*15.0f, mBody->GetLinearVelocity().y));
-            }
-        }
-
-        if (touchingLadder()) {
-            if (input.keyHeld(sf::Keyboard::W)) {
-                mBody->SetLinearVelocity(b2Vec2(mBody->GetLinearVelocity().x, 20.0f));
-            }
-        }
-
-        if (axis > 0)   mFacingRight = true;
-        if (axis < 0)   mFacingRight = false;
-
+        // Set sprite direction and orientation
         sprite.setPosition(convertb2Vec2(getPosition() - b2Vec2(0.0f, 1.0f)));
-
         if (mFacingRight)   sprite.setScale(0.6f, 0.6f);
         else                sprite.setScale(-0.6f, 0.6f);
     }
@@ -190,6 +202,10 @@ public:
     b2Body* mBody;
     sf::Sprite sprite;
 
+    bool mDoubleJumpEnabled = true;
+    bool mLadderClimbEnabled = true;
+    bool mSprintEnabled = true;
+
 private:
     ///////////////////////////
 
@@ -199,6 +215,7 @@ private:
     int mHealth = 3;
     float mMaxIFrameTime = 0.5; //in seconds
     const int mMaxHealth = 3;
+    const float mWalkSpeed = 15.0f;
     float mIFrameTime = 0;
     float mFlashTimer = 0;
     float mMaxFlashTime = 0.08;
