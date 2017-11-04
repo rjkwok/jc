@@ -34,14 +34,17 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount++;
         }
-        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+        if (((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) 
+            || contact->GetFixtureA()->GetFilterData().categoryBits == ROACH) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
         }
-        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+        if (((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) 
+            || contact->GetFixtureB()->GetFilterData().categoryBits == ROACH) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
         }
+
     }
 
     void EndContact(b2Contact* contact) {
@@ -72,11 +75,13 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mLadderContactCount--;
         }
-        if ((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
+        if (((contact->GetFixtureA()->GetFilterData().categoryBits == THORN || contact->GetFixtureA()->GetFilterData().categoryBits == BOULDER)
+        || contact->GetFixtureA()->GetFilterData().categoryBits == ROACH)  && contact->GetFixtureB()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureB()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }
-        if ((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
+        if (((contact->GetFixtureB()->GetFilterData().categoryBits == THORN || contact->GetFixtureB()->GetFilterData().categoryBits == BOULDER)
+        || contact->GetFixtureB()->GetFilterData().categoryBits == ROACH) && contact->GetFixtureA()->GetFilterData().categoryBits == PLAYER) {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }

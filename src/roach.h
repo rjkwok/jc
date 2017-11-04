@@ -33,7 +33,7 @@ public:
         boxShape.SetAsBox(2.0f, 1.0f);
 
         b2FixtureDef boxFixtureDef;
-        boxFixtureDef.filter.categoryBits = PLAYER; //make a new thing is want different interaction
+        boxFixtureDef.filter.categoryBits = ROACH;
         boxFixtureDef.shape = &boxShape;
         boxFixtureDef.friction = 0.0f;
         boxFixtureDef.density = 1.0f;
@@ -53,10 +53,10 @@ public:
     }
     
 
-    void update(const Input& input, Level& level, const float dt){
-        
+   // void update(const Input& input, Level& level, const float dt){
 
-      }
+
+     // }
 
     sf::Sprite sprite;
     b2Body* mBody;

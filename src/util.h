@@ -9,7 +9,7 @@
 enum _entityCategory {
     HORIZONTAL =    1,
     PLAYER =        2,
-    FEET =          3,
+    FEET =          4,
     FISH =          8,
     FALL =          16,
     LADDER =        32,
@@ -17,7 +17,8 @@ enum _entityCategory {
     GOAL =          128,
     VERTICAL =      256,
     SLIP =          512,
-    BOULDER =      1024
+    BOULDER =      1024,
+    ROACH =        2048
 };
 
 template <typename T>
