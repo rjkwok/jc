@@ -18,7 +18,8 @@ enum _entityCategory {
     VERTICAL =      256,
     SLIP =          512,
     BOULDER =      1024,
-    ROACH =        2048
+    ROACH =        2048,
+    PATH =         4096
 };
 
 template <typename T>

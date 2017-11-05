@@ -40,15 +40,17 @@ public:
 
         mBody->CreateFixture(&boxFixtureDef)->SetUserData((void*)this);
 
-        b2PolygonShape sensorShape;
-        sensorShape.SetAsBox(1.0f, 0.25f, b2Vec2(0.0f, -1.0f), 0.0f);
+        b2PolygonShape footSensorShape;
+        footSensorShape.SetAsBox(1.0f, 0.25f, b2Vec2(0.0f, -1.0f), 0.0f);
 
         b2FixtureDef sensorFixtureDef;
         sensorFixtureDef.filter.categoryBits = FEET;
-        sensorFixtureDef.shape = &sensorShape;
+        sensorFixtureDef.shape = &footSensorShape;
         sensorFixtureDef.isSensor = true;
 
         mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
+
+        
 
     }
     
