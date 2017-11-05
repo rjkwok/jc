@@ -10,6 +10,8 @@
 #include <sstream>
 #include <fstream>
 
+#include "animation.h"
+
 class Edge {
 
 public:
@@ -776,6 +778,16 @@ public:
         for (BoulderSpawn& boulderSpawn: boulderSpawns) {
             boulderSpawn.update(*world, dt);
         }
+
+        // update effect positions and animation, and cull any that are expired
+        std::vector<Effect> remaining_effects;
+        for (Effect& effect: effects) {
+            effect.update(dt);
+            if (effect.alive()) {
+                remaining_effects.push_back(effect);
+            }
+        }
+        effects = remaining_effects;
     }
 
     b2Vec2 spawn;
@@ -788,6 +800,7 @@ public:
     std::vector<Bouncer> bouncers;
     std::vector<Swing> swings;
     std::vector<PinnedEdge> pinnedEdges;
+    std::vector<Effect> effects;
     b2ContactListener* myContactListener;
     b2World* world;
 };

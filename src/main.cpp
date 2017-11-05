@@ -18,6 +18,13 @@ using json = nlohmann::json;
 #include "builder.h"
 #include "hud.h"
 #include "roach.h"
+#include "animation.h"
+
+void loadTexture(std::map<std::string, sf::Texture*>& textures, const std::string name, const std::string path) {
+
+    textures[name] = new sf::Texture();
+    textures[name]->loadFromFile(path);
+}
 
 int main() {
 
@@ -43,12 +50,21 @@ int main() {
 
     level.loadFromFile("level.json");
 
-    sf::Texture texture;
-    sf::Texture roachTexture;
-    texture.loadFromFile("laughing.png");
-    roachTexture.loadFromFile("roachTextureTest");
-    Player player(level, texture);
-    Roach roachTest(level, roachTexture);
+    // We need a lot of textures and we need to reference them a lot right now to create new effects, switch between
+    // player attacks, etc. so we can store them in this labelled container and pass it around the program to any
+    // function that needs to use textures.
+    std::map<std::string, sf::Texture*> textures;
+    loadTexture(textures, "neutral", "neutral.png");
+    loadTexture(textures, "forward", "forward.png");
+    loadTexture(textures, "up", "up.png");
+    loadTexture(textures, "back", "back.png");
+    loadTexture(textures, "roach", "roachTextureTest");
+    loadTexture(textures, "forward_effect", "forward_effect.png");
+    loadTexture(textures, "up_effect", "up_effect.png");
+    loadTexture(textures, "back_effect", "back_effect.png");
+
+    Player player(level, *textures["neutral"]);
+    Roach roachTest(level, *textures["roach"]);
     //
 
     Camera camera(view);
@@ -110,7 +126,7 @@ int main() {
 
         (*builder)->update(input, &level);
 
-        player.update(input, level, dt);
+        player.update(input, level, dt, textures);
         level.update(dt);
         hudUpdate(window, window_view, player.mHealthPercent);
 
@@ -148,11 +164,18 @@ int main() {
         (*builder)->draw(window);
         level.world->DrawDebugData();
         player.draw(window,dt);
+        for (Effect effect: level.effects) {
+            effect.draw(window);
+        }
         window.display();
     }
 
     for (auto ptr: builders) {
         delete ptr;
+    }
+
+    for (auto pair: textures) {
+        delete pair.second;
     }
 
     level.dumpToFile("level.json");
