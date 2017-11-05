@@ -104,7 +104,7 @@ int main() {
         if (player.getPosition().x > level.max) {
 
             // go to next level
-            level.loadFromFile("");
+            //level.loadFromFile("");
             player.respawn(level);
         }
 
