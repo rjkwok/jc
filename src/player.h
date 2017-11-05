@@ -123,7 +123,9 @@ public:
         }
 
         // Reset x velocity to 0
-        mBody->SetLinearVelocity(b2Vec2(0, mBody->GetLinearVelocity().y));
+        if (!touchingSlipSurface()) {
+            mBody->SetLinearVelocity(b2Vec2(0, mBody->GetLinearVelocity().y));
+        }
 
         if (!animation.play(dt, sprite, 2)) { // as this is the default animation(0,0) it is basically a clock that triggers false every 1/fps seconds
             sprite.setTexture(*textures["neutral"]);
