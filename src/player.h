@@ -8,6 +8,7 @@
 
 #include "util.h"
 #include "level.h"
+#include "animation.h"
 
 class Player {
 
@@ -92,7 +93,7 @@ public:
         }
     }
 
-    void update(const Input& input, Level& level, const float dt) {
+    void update(const Input& input, Level& level, const float dt, std::map<std::string, sf::Texture*>& textures) {
 
         mHealthPercent = (mHealth/float(mMaxHealth));
 
@@ -124,6 +125,10 @@ public:
         // Reset x velocity to 0
         mBody->SetLinearVelocity(b2Vec2(0, mBody->GetLinearVelocity().y));
 
+        if (!animation.play(dt, sprite, 2)) { // as this is the default animation(0,0) it is basically a clock that triggers false every 1/fps seconds
+            sprite.setTexture(*textures["neutral"]);
+        }
+
         // Mapping of user inputs to player actions
         if (input.keyPressed(sf::Keyboard::Space)) {
 
@@ -142,6 +147,60 @@ public:
 
             walk(mSprintEnabled && input.keyHeld(sf::Keyboard::LShift) ? -2*mWalkSpeed : -mWalkSpeed);
             mFacingRight = false;
+        }
+
+        // front facing punch
+        if ((mFacingRight && input.keyPressed(sf::Keyboard::Right)) || (!mFacingRight && input.keyPressed(sf::Keyboard::Left))) {
+
+            if (input.keyHeld(sf::Keyboard::LShift)) {
+                // counter
+            }
+            else {
+                // melee
+                Effect effect(textures["forward_effect"], 613, 251, 0, 0, 0.1);
+                effect.setPosition(sprite.getPosition() + sf::Vector2f(-160*sprite.getScale().x, -576*sprite.getScale().y));
+                effect.setVelocity(mBody->GetLinearVelocity());
+                effect.setScale(sprite.getScale().x, sprite.getScale().y);
+                level.effects.push_back(effect);
+                animation = Animation(0,0); // "set the animation" currently just resets the animation so that we sit on this frame for a full cycle
+                sprite.setTexture(*textures["forward"]);
+            }
+        }
+
+        // upwards punch
+        if (input.keyPressed(sf::Keyboard::Up)) {
+
+            if (input.keyHeld(sf::Keyboard::LShift)) {
+                // counter
+            }
+            else {
+                // melee
+                Effect effect(textures["up_effect"], 750, 569, 0, 0, 0.1);
+                effect.setPosition(sprite.getPosition() + sf::Vector2f(-350*sprite.getScale().x, -831*sprite.getScale().y));
+                effect.setVelocity(mBody->GetLinearVelocity());
+                effect.setScale(sprite.getScale().x, sprite.getScale().y);
+                level.effects.push_back(effect);
+                animation = Animation(0,0); // "set the animation" currently just resets the animation so that we sit on this frame for a full cycle
+                sprite.setTexture(*textures["up"]);
+            }
+        }
+
+        // rear facing punch
+        if ((mFacingRight && input.keyPressed(sf::Keyboard::Left)) || (!mFacingRight && input.keyPressed(sf::Keyboard::Right))) {
+
+            if (input.keyHeld(sf::Keyboard::LShift)) {
+                // counter
+            }
+            else {
+                // melee
+                Effect effect(textures["back_effect"], 154, 408, 0, 0, 0.1);
+                effect.setPosition(sprite.getPosition() + sf::Vector2f(-260*sprite.getScale().x, -776*sprite.getScale().y));
+                effect.setVelocity(mBody->GetLinearVelocity());
+                effect.setScale(sprite.getScale().x, sprite.getScale().y);
+                level.effects.push_back(effect);
+                animation = Animation(0,0); // "set the animation" currently just resets the animation so that we sit on this frame for a full cycle
+                sprite.setTexture(*textures["back"]);
+            }
         }
 
         // If the player has recontacted the ground this tick, "restock" the amount of extra jumps for the next tick
@@ -201,6 +260,7 @@ public:
     int mSlipContactCount = 0;
     b2Body* mBody;
     sf::Sprite sprite;
+    Animation animation;
 
     bool mDoubleJumpEnabled = true;
     bool mLadderClimbEnabled = true;
