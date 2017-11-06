@@ -22,8 +22,9 @@ public:
     }
 
     void spawn(Level& level){
+        b2Vec2 roachSpawnOne = b2Vec2(30,10);
     	b2BodyDef boxBodyDef;
-        boxBodyDef.position = level.spawn;
+        boxBodyDef.position = (roachSpawnOne);
         boxBodyDef.fixedRotation = true;
         boxBodyDef.type = b2_dynamicBody;
 
@@ -40,30 +41,75 @@ public:
 
         mBody->CreateFixture(&boxFixtureDef)->SetUserData((void*)this);
 
-        b2PolygonShape footSensorShape;
-        footSensorShape.SetAsBox(1.0f, 0.25f, b2Vec2(0.0f, -1.0f), 0.0f);
+        //left pathing sensor
+        b2PolygonShape LPathSensorShape;
+        LPathSensorShape.SetAsBox(0.25f, 0.25f, b2Vec2(-2.5f, -1.0f), 0.0f);
 
-        b2FixtureDef sensorFixtureDef;
-        sensorFixtureDef.filter.categoryBits = FEET;
-        sensorFixtureDef.shape = &footSensorShape;
-        sensorFixtureDef.isSensor = true;
+        b2FixtureDef LPathSensorFixtureDef;
+        LPathSensorFixtureDef.filter.categoryBits = PATH;
+        LPathSensorFixtureDef.shape = &LPathSensorShape;
+        LPathSensorFixtureDef.isSensor = true;
 
-        mBody->CreateFixture(&sensorFixtureDef)->SetUserData((void*)this);
+        mBody->CreateFixture(&LPathSensorFixtureDef)->SetUserData((void*)this);
 
-        
+        //right pathing sensor
+        b2PolygonShape RPathSensorShape;
+        RPathSensorShape.SetAsBox(0.25f, 0.25f, b2Vec2(2.5f, -1.0f), 0.0f);
+
+        b2FixtureDef RPathSensorFixtureDef;
+        RPathSensorFixtureDef.filter.categoryBits = PATH;
+        RPathSensorFixtureDef.shape = &RPathSensorShape;
+        RPathSensorFixtureDef.isSensor = true;
+
+        mBody->CreateFixture(&RPathSensorFixtureDef)->SetUserData((void*)this);
 
     }
     
 
-   // void update(const Input& input, Level& level, const float dt){
+   void update(){
 
+        walk(mWalkSpeed*mDirection);
 
-     // }
+        if(willThereBeGround() == 0){
+            mDirection = mDirection*(-1);
+        }
+
+        if(willThereBeWall() == 0){
+            mDirection = mDirection*(-1);
+        }
+
+        std::cout<<"mDirection"<<mDirection<<"     Wallcount"<<mWallContactCount<<std::endl;
+
+    }
+
+    void walk(float x_velocity) {
+        mBody->SetLinearVelocity(b2Vec2(x_velocity, mBody->GetLinearVelocity().y));
+    }
+
+    b2Vec2 getPosition() const {
+
+        return mBody->GetPosition();
+    }
+
+    bool willThereBeGround() {
+
+        return mFloorContactCount > 0;
+    }
+
+    bool willThereBeWall() {
+
+        return mWallContactCount > 0;
+    }
 
     sf::Sprite sprite;
     b2Body* mBody;
+    int mFloorContactCount = 0;
+    int mWallContactCount = 0;
 
 private:
+
+    int mDirection = 1;
+    const float mWalkSpeed = 5.0f;
 
 };
 

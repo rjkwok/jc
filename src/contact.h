@@ -3,6 +3,7 @@
 
 #include "Box2D/Box2D.h"
 #include "player.h"
+#include "roach.h"
 
 class MyContactListener : public b2ContactListener {
 
@@ -44,6 +45,22 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount++;
         }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == PATH && contact->GetFixtureB()->GetFilterData().categoryBits == HORIZONTAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mFloorContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == PATH && contact->GetFixtureA()->GetFilterData().categoryBits == HORIZONTAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mFloorContactCount++;
+        }        
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == PATH && contact->GetFixtureB()->GetFilterData().categoryBits == VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mWallContactCount++;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == PATH && contact->GetFixtureA()->GetFilterData().categoryBits == VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mWallContactCount++;
+        }        
 
     }
 
@@ -85,6 +102,22 @@ class MyContactListener : public b2ContactListener {
             void* fixtureUserData = contact->GetFixtureA()->GetUserData();
             if (fixtureUserData)    static_cast<Player*>(fixtureUserData)->mThornContactCount--;
         }
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == PATH && contact->GetFixtureB()->GetFilterData().categoryBits == HORIZONTAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mFloorContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == PATH && contact->GetFixtureA()->GetFilterData().categoryBits == HORIZONTAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mFloorContactCount--;
+        }        
+        if (contact->GetFixtureA()->GetFilterData().categoryBits == PATH && contact->GetFixtureB()->GetFilterData().categoryBits == VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureB()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mWallContactCount--;
+        }
+        if (contact->GetFixtureB()->GetFilterData().categoryBits == PATH && contact->GetFixtureA()->GetFilterData().categoryBits == VERTICAL) {
+            void* fixtureUserData = contact->GetFixtureA()->GetUserData();
+            if (fixtureUserData)    static_cast<Roach*>(fixtureUserData)->mWallContactCount--;
+        }   
     }
 
 public:
