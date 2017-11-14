@@ -12,8 +12,8 @@
 class Roach {
 public:
 
-	Roach(Level& level, sf::Texture& texture) {
-		spawn(level);
+	Roach(Level& level, sf::Texture& texture, int roachNum) {
+		spawn(level, roachNum);
 
        	sprite.setTexture(texture, true);
         sf::Vector2u bounds = texture.getSize();
@@ -21,10 +21,19 @@ public:
         sprite.setScale(0.3f, 0.3f); // will have to change depenting on texture used
     }
 
-    void spawn(Level& level){
-        b2Vec2 roachSpawnOne = b2Vec2(30,10);
+    void spawn(Level& level, int roachNum){
+
+        b2Vec2 roachSpawn;
+
+        if(roachNum == 1){
+            roachSpawn = b2Vec2(85,10);
+        }
+        if(roachNum == 2){
+            roachSpawn = b2Vec2(20,10);
+        }
+
     	b2BodyDef boxBodyDef;
-        boxBodyDef.position = (roachSpawnOne);
+        boxBodyDef.position = (roachSpawn);
         boxBodyDef.fixedRotation = true;
         boxBodyDef.type = b2_dynamicBody;
 
@@ -46,7 +55,7 @@ public:
         LPathSensorShape.SetAsBox(0.25f, 0.25f, b2Vec2(-2.5f, -1.0f), 0.0f);
 
         b2FixtureDef LPathSensorFixtureDef;
-        LPathSensorFixtureDef.filter.categoryBits = PATH;
+        LPathSensorFixtureDef.filter.categoryBits = LPATH;
         LPathSensorFixtureDef.shape = &LPathSensorShape;
         LPathSensorFixtureDef.isSensor = true;
 
@@ -57,7 +66,7 @@ public:
         RPathSensorShape.SetAsBox(0.25f, 0.25f, b2Vec2(2.5f, -1.0f), 0.0f);
 
         b2FixtureDef RPathSensorFixtureDef;
-        RPathSensorFixtureDef.filter.categoryBits = PATH;
+        RPathSensorFixtureDef.filter.categoryBits = RPATH;
         RPathSensorFixtureDef.shape = &RPathSensorShape;
         RPathSensorFixtureDef.isSensor = true;
 
@@ -70,15 +79,23 @@ public:
 
         walk(mWalkSpeed*mDirection);
 
-        if(willThereBeGround() == 0){
-            mDirection = mDirection*(-1);
+        if(mLFloorContactCount == 0){
+            mDirection = 1;
+            std::cout<<"Left drop  "<<mLFloorContactCount<<std::endl;
         }
 
-        if(willThereBeWall() == 0){
-            mDirection = mDirection*(-1);
+        if(mLWallContactCount > 0){
+            mDirection = 1;
         }
 
-        std::cout<<"mDirection"<<mDirection<<"     Wallcount"<<mWallContactCount<<std::endl;
+        if(mRFloorContactCount == 0){
+            mDirection = -1;
+            std::cout<<"Right drop  "<<mRFloorContactCount<<std::endl;
+        }
+
+        if(mRWallContactCount > 0){
+            mDirection = -1;
+        }
 
     }
 
@@ -91,20 +108,13 @@ public:
         return mBody->GetPosition();
     }
 
-    bool willThereBeGround() {
-
-        return mFloorContactCount > 0;
-    }
-
-    bool willThereBeWall() {
-
-        return mWallContactCount > 0;
-    }
 
     sf::Sprite sprite;
     b2Body* mBody;
-    int mFloorContactCount = 0;
-    int mWallContactCount = 0;
+    int mLFloorContactCount = 0;
+    int mLWallContactCount = 0;
+    int mRFloorContactCount = 0;
+    int mRWallContactCount = 0;
 
 private:
 

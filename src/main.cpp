@@ -64,7 +64,8 @@ int main() {
     loadTexture(textures, "back_effect", "back_effect.png");
 
     Player player(level, *textures["neutral"]);
-    Roach roach(level, *textures["roach"]);
+    Roach roach1(level, *textures["roach"], 1);
+    Roach roach2(level, *textures["roach"], 2);
     //
 
     Camera camera(view);
@@ -129,7 +130,8 @@ int main() {
         player.update(input, level, dt, textures);
         level.update(dt);
         hudUpdate(window, window_view, player.mHealthPercent);
-        roach.update();
+        roach1.update();
+        roach2.update();
 
         level.world->Step(dt, velocityIterations, positionIterations);
 

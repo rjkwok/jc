@@ -19,7 +19,8 @@ enum _entityCategory {
     SLIP =          512,
     BOULDER =      1024,
     ROACH =        2048,
-    PATH =         4096
+    LPATH =        4096,
+    RPATH =        8192
 };
 
 template <typename T>
