@@ -64,6 +64,9 @@ int main() {
     loadTexture(textures, "up_effect", "up_effect.png");
     loadTexture(textures, "back_effect", "back_effect.png");
 
+    sf::Font font1;
+    font1.loadFromFile("font1.ttf");
+
     Player player(level, *textures["neutral"]);
     Roach roachTest(level, *textures["roach"]);
     //
@@ -80,6 +83,21 @@ int main() {
 
     Input input;
 
+    // DEFINE THE GUI/HUD
+    GUI gui;
+
+    // Add text element (positioned by topleft) to gui
+    gui.addElement(new GUIText(sf::Vector2f(10,30), "HEALTH", &font1, sf::Color(255,255,255,255), 21));
+
+    // Add healthbar background rectangle to gui
+    gui.addElement(new GUIRect(10, 10, 100, 10, sf::Color(255,255,255,155)));
+
+    // Create gui rectangle element with a width linked to the variable that records player health, and add to gui
+    GUIWidthBar* healthbar = new GUIWidthBar(10, 10, 100, 10, sf::Color(255,0,0,255));
+    healthbar->setMeasurand(&player.mHealthPercent);
+    gui.addElement(healthbar);
+
+    // Set physics solver parameters
     int32 positionIterations = 2;
     int32 velocityIterations = 6;
 
@@ -129,7 +147,6 @@ int main() {
 
         player.update(input, level, dt, textures);
         level.update(dt);
-        hudUpdate(window, window_view, player.mHealthPercent);
 
         level.world->Step(dt, velocityIterations, positionIterations);
 
@@ -161,6 +178,8 @@ int main() {
         myContactListener.beginContactEvents.clear();
         myContactListener.endContactEvents.clear();
 
+        gui.update(input, level, dt);
+
 
         (*builder)->draw(window);
         level.world->DrawDebugData();
@@ -168,6 +187,9 @@ int main() {
         for (Effect effect: level.effects) {
             effect.draw(window);
         }
+        window.setView(window_view);
+        gui.draw(window);
+        window.setView(camera.mView);
         window.display();
     }
 
