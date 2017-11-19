@@ -19,6 +19,7 @@ using json = nlohmann::json;
 #include "hud.h"
 #include "roach.h"
 #include "animation.h"
+#include "gui.h"
 
 void loadTexture(std::map<std::string, sf::Texture*>& textures, const std::string name, const std::string path) {
 
