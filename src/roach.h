@@ -81,7 +81,6 @@ public:
 
         if(mLFloorContactCount == 0){
             mDirection = 1;
-            std::cout<<"Left drop  "<<mLFloorContactCount<<std::endl;
         }
 
         if(mLWallContactCount > 0){
@@ -90,7 +89,6 @@ public:
 
         if(mRFloorContactCount == 0){
             mDirection = -1;
-            std::cout<<"Right drop  "<<mRFloorContactCount<<std::endl;
         }
 
         if(mRWallContactCount > 0){
